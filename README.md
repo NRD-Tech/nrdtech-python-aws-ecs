@@ -86,7 +86,7 @@ poetry env info
   * Mark the tests folder as "Tests"
   * Click "OK"
 4. Run the following in the terminal
-```poe
+```
 # Set up the virtual environment and installs dependencies
 poetry install
 
@@ -101,6 +101,13 @@ poetry env info
   * After following the README.md instructions in the bootstrap template project you should have:
     * An AWS Role ARN
     * An AWS S3 bucket for the Terraform state files
+
+## AWS Pre-Requisite
+* Configure VPC Subnets with names that have "private" or "public" in them
+  * Examples:
+    * public-subnet-west-2a
+    * private-subnet-west-2a
+  * Terraform uses this to determine in which subnets to deploy the tasks
 
 ## Configure Settings
 * Edit .env.global

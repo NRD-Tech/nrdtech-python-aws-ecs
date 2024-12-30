@@ -21,14 +21,19 @@ variable "code_hash_file" {
   type        = string
 }
 
-variable "app_timeout" {
-  description = "Number of seconds until the lambda function times out"
+variable "app_cpu" {
+  description = "ECS CPU"
   type        = number
 }
 
 variable "app_memory" {
-  description = "Number of megabytes of memory to allocate to the lambda function"
+  description = "ECS Memory"
   type        = number
+}
+
+variable "ecs_cluster_arn" {
+  description = "ECS Cluster ARN"
+  type        = string
 }
 
 variable "sns_topic_name" {

@@ -1,4 +1,8 @@
-FROM public.ecr.aws/lambda/python:3.12
+# Use an official Python 3.12 slim image
+FROM python:3.12-slim
+
+# Set working directory inside the container
+WORKDIR /app
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
@@ -16,10 +20,27 @@ RUN ~/.local/bin/poetry install --only main --no-dev
 
 # Locate Poetry's virtual environment and copy dependencies to the Lambda path
 RUN VENV_PATH=$(~/.local/bin/poetry env info --path) && \
-    cp -r ${VENV_PATH}/lib/python3.12/site-packages/* ${LAMBDA_TASK_ROOT}/
+    cp -r ${VENV_PATH}/lib/python3.12/site-packages/* ./
 
 # Copy function code
-COPY app/ ${LAMBDA_TASK_ROOT}/app/
+COPY app/ ./app/
 
-# Set the CMD to your handler
-CMD ["app.lambda_handler.lambda_handler"]
+##############################################################################################################
+# UN-COMMENT ONE OF THE SECTIONS BELOW
+##############################################################################################################
+
+
+##############################################################################################################
+# Basic Task
+##############################################################################################################
+CMD ["python", "main.py"]
+
+##############################################################################################################
+# FastAPI App Service
+##############################################################################################################
+
+## Expose the port the app will run on
+#EXPOSE 8080
+#
+## Command to run the application using Uvicorn
+#CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--log-config", "logging_config.json"]
