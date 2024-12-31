@@ -4,6 +4,11 @@ FROM python:3.12-slim
 # Set working directory inside the container
 WORKDIR /app
 
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
@@ -23,7 +28,7 @@ RUN VENV_PATH=$(~/.local/bin/poetry env info --path) && \
     cp -r ${VENV_PATH}/lib/python3.12/site-packages/* ./
 
 # Copy function code
-COPY app/ ./app/
+COPY app ./app/
 
 ##############################################################################################################
 # UN-COMMENT ONE OF THE SECTIONS BELOW
@@ -33,7 +38,7 @@ COPY app/ ./app/
 ##############################################################################################################
 # Basic Task
 ##############################################################################################################
-CMD ["python", "main.py"]
+CMD ["python", "app/main.py"]
 
 ##############################################################################################################
 # FastAPI App Service
