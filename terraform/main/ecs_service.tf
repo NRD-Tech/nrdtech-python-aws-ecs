@@ -51,11 +51,13 @@
 #   }
 # }
 
-# data "aws_ecs_cluster" "cluster" {
-#   cluster = var.ecs_cluster_arn
+# locals {
+#   cluster_name = element(split("/", var.ecs_cluster_arn), 1)
 # }
 
-
+# data "aws_ecs_cluster" "cluster" {
+#   cluster_name = local.cluster_name
+# }
 
 # # ECS Service
 # resource "aws_ecs_service" "ecs_service" {
