@@ -118,17 +118,20 @@ poetry env info
     * AWS_ROLE_ARN
     * SNS_TOPIC_FOR_ALARMS
       * Make sure to choose an SNS Topic that already exists and will notify your dev team of problems
-* Choose how your lambda function will be triggered and un-comment the appropriate terraform:
+    * ECS_CLUSTER_ARN
+      * Choose an existing ECS Cluster to use
+    * LAUNCH_TYPE
+      * Specify one of these launch types: EC2, FARGATE, or FARGATE_SPOT
+      * Note that for the EC2 option to work you must choose an ECS Cluster that has an EC2 Capacity Provider
+* Choose how your Task will be triggered
   * Event Bridge Scheduling:
-    * Un-comment terraform/main/lambda_eventbridge_schedule.tf
-    * Edit lambda_handler.py to enable the appropriate section
-  * SQS Triggered:
-    * Un-comment terraform/main/lambda_sqs_trigger.tf
-    * Edit lambda_handler.py to enable the appropriate section
-  * API Gateway:
-    * Un-comment terraform/main/lambda_api_gateway.tf
-    * Edit lambda_handler.py to enable the appropriate section
-    * Configure the domain's in .env.prod and .env.staging
+    * Un-comment terraform/main/ecs_eventbridge.tf
+    * Edit app/main.py to enable the appropriate section
+    * Edit Dockerfile at the bottom to start your task correctly
+  * ECS Service (always-on running service with 1+ tasks)
+    * Un-comment terraform/main/ecs_service.tf
+    * Edit app/main.py to enable the appropriate section
+    * Edit Dockerfile at the bottom to start your service correctly
 * Commit your changes to git
 ```
 git add .
@@ -201,15 +204,11 @@ git push --set-upstream origin production
 # Misc How-To's
 
 ## How to use this template for a proprietary project
-This project's license (Apache License 2.0) allows for you to create proprietary code based on this template.
+This project's license (MIT License) allows for you to create proprietary code based on this template.
 
 Here are the steps to correctly do this:
-1. Keep the original LICENSE file
-2. Create a new file called LICENSE_PROPRIETARY that includes your proprietary license terms
-3. Create a NOTICE file that contains something like this:
-
-| Portions of this project are based on a template licensed under the Apache License 2.0. These portions are © NRD Tech LLC.
-All other modifications, additions, and new work are © [Your Name or Your Company] and are governed by a proprietary license as described in LICENSE_PROPRIETARY.
+1. Replace the LICENSE file with your proprietary license terms if you wish to use your own license.
+2. Optionally, include a NOTICE file stating that the original work is licensed under the MIT License and specify the parts of the project that are governed by your proprietary license.
 
 ## How to set up to use CodeArtifact dependencies
 
@@ -241,9 +240,9 @@ aws ecr get-login-password \
       --region us-west-2 | \
       docker login \
         --username AWS \
-        --password-stdin 482370276428.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository
+        --password-stdin 1234567890.dkr.ecr.us-west-2.amazonaws.com/my-test-project-prod_repository
 
-docker run --rm -p 9000:8080 -it 482370276428.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:latest 
+docker run --rm -p 9000:8080 -it 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:latest 
 
 curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}'
 
@@ -252,5 +251,18 @@ curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d
 # How To Inspect docker image
 ```
 alias dive="docker run -ti --rm  -v /var/run/docker.sock:/var/run/docker.sock wagoodman/dive"
-dive 482370276428.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:latest
+dive 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:latest
+```
+
+# How to view the architecture (and other info) of a docker image
+```
+export AWS_PROFILE=mycompanyprofile
+docker logout 1234567890.dkr.ecr.us-west-2.amazonaws.com
+aws ecr get-login-password \
+      --region us-west-2 | \
+      docker login \
+        --username AWS \
+        --password-stdin 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository
+docker pull 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository
+docker inspect 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:35a3db7d0a07f9f9b8b4f9b883de7362
 ```

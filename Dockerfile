@@ -13,7 +13,7 @@ RUN apt-get update && \
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Copy pyproject.toml and poetry.lock for dependency installation
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml poetry.lock logging_config.json ./
 
 # NOTE: Use this if you need to access private codeartifact shared python libraries
 # ARG CODEARTIFACT_TOKEN
@@ -21,11 +21,12 @@ COPY pyproject.toml poetry.lock ./
 # RUN ~/.local/bin/poetry config http-basic.mycompany aws ${CODEARTIFACT_TOKEN}
 
 # Install dependencies using Poetry (only production dependencies)
-RUN ~/.local/bin/poetry install --only main --no-dev
+RUN ~/.local/bin/poetry install --only main
 
 # Locate Poetry's virtual environment and copy dependencies to the Lambda path
 RUN VENV_PATH=$(~/.local/bin/poetry env info --path) && \
-    cp -r ${VENV_PATH}/lib/python3.12/site-packages/* ./
+    cp -r ${VENV_PATH}/lib/python3.12/site-packages/* ./ && \
+    ln -s ${VENV_PATH}/bin/uvicorn /usr/local/bin/uvicorn
 
 # Copy function code
 COPY app ./app/
@@ -43,9 +44,7 @@ CMD ["python", "app/main.py"]
 ##############################################################################################################
 # FastAPI App Service
 ##############################################################################################################
-
-## Expose the port the app will run on
-#EXPOSE 8080
-#
-## Command to run the application using Uvicorn
-#CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--log-config", "logging_config.json"]
+# # Expose the port the app will run on
+# EXPOSE 8080
+# # Command to run the application using Uvicorn
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--log-config", "logging_config.json"]

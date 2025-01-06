@@ -21,6 +21,11 @@ variable "code_hash_file" {
   type        = string
 }
 
+variable "launch_type" {
+  description = "Launch type for ECS (FARGATE, FARGATE_SPOT, or EC2)"
+  default     = "FARGATE"
+}
+
 variable "app_cpu" {
   description = "ECS CPU"
   type        = number
@@ -31,9 +36,20 @@ variable "app_memory" {
   type        = number
 }
 
+variable desired_count {
+  description = "Number of desired instances for a service task"
+  type = number
+  default = 1
+}
+
 variable "ecs_cluster_arn" {
   description = "ECS Cluster ARN"
   type        = string
+}
+
+variable "cpu_architecture" {
+  description = "X86_64 or ARM64"
+  type = string
 }
 
 variable "sns_topic_name" {
