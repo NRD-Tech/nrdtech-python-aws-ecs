@@ -1,6 +1,6 @@
 # resource "aws_cloudwatch_event_rule" "ecs_rule" {
 #   name                = "${var.app_ident}-ecs-rule"
-#   schedule_expression = "cron(* * * * ? *)"
+#   schedule_expression = "cron(0 * * * ? *)"
 # }
 
 # locals {
