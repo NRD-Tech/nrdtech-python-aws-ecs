@@ -2,6 +2,9 @@
 #   # Must be no longer than 64 characters
 #   name                = "${var.app_ident}-ecs-rule"
 #   schedule_expression = "cron(0 * * * ? *)"
+#
+#   # NOTE: All environments except prod are disabled by default here
+#   state = var.environment == "prod" ? "ENABLED" : "DISABLED"
 # }
 
 # locals {
