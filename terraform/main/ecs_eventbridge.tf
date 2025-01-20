@@ -1,4 +1,5 @@
 # resource "aws_cloudwatch_event_rule" "ecs_rule" {
+#   # Must be no longer than 64 characters
 #   name                = "${var.app_ident}-ecs-rule"
 #   schedule_expression = "cron(0 * * * ? *)"
 # }
