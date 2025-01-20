@@ -130,8 +130,6 @@ At this point you should have a fully working local development environment.  Th
     * TERRAFORM_STATE_BUCKET
     * AWS_DEFAULT_REGION
     * AWS_ROLE_ARN
-    * SNS_TOPIC_FOR_ALARMS
-      * Make sure to choose an SNS Topic that already exists and will notify your dev team of problems
     * ECS_CLUSTER_ARN
       * Choose an existing ECS Cluster to use
     * LAUNCH_TYPE
