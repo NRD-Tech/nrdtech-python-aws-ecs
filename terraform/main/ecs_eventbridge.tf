@@ -38,7 +38,7 @@
 
 # resource "aws_cloudwatch_event_target" "ecs_target" {
 #   rule     = aws_cloudwatch_event_rule.ecs_rule.name
-#   arn      = var.ecs_cluster_arn
+#   arn      = aws_ecs_cluster.ecs.arn
 #   role_arn = aws_iam_role.execution_role.arn
 #   dead_letter_config {
 #     arn = aws_sqs_queue.eventbridge_rule_dlq.arn

@@ -42,11 +42,6 @@ variable desired_count {
   default = 1
 }
 
-variable "ecs_cluster_arn" {
-  description = "ECS Cluster ARN"
-  type        = string
-}
-
 variable "cpu_architecture" {
   description = "X86_64 or ARM64"
   type = string

@@ -52,7 +52,7 @@
 # }
 
 # locals {
-#   cluster_name = element(split("/", var.ecs_cluster_arn), 1)
+#   cluster_name = element(split("/", aws_ecs_cluster.ecs.arn), 1)
 # }
 
 # data "aws_ecs_cluster" "cluster" {
@@ -62,7 +62,7 @@
 # # ECS Service
 # resource "aws_ecs_service" "ecs_service" {
 #   name            = "${var.app_ident}-service"
-#   cluster         = var.ecs_cluster_arn
+#   cluster         = aws_ecs_cluster.ecs.arn
 #   task_definition = aws_ecs_task_definition.task_definition.arn
 #   desired_count   = var.desired_count
 

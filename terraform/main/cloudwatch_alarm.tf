@@ -23,7 +23,7 @@
 #       period      = 60
 #       stat        = "Sum"
 #       dimensions = {
-#         ClusterName = element(split("/", var.ecs_cluster_arn), 1)
+#         ClusterName = element(split("/", aws_ecs_cluster.ecs.arn), 1)
 #         ServiceName = var.app_ident # Replace with your service or task name
 #       }
 #     }

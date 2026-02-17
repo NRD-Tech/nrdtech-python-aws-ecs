@@ -136,11 +136,8 @@ At this point you should have a fully working local development environment.  Th
     * TERRAFORM_STATE_BUCKET
     * AWS_DEFAULT_REGION
     * AWS_ROLE_ARN
-    * ECS_CLUSTER_ARN
-      * Choose an existing ECS Cluster to use
     * LAUNCH_TYPE
-      * Specify one of these launch types: EC2, FARGATE, or FARGATE_SPOT
-      * Note that for the EC2 option to work you must choose an ECS Cluster that has an EC2 Capacity Provider
+      * Specify one of these launch types: FARGATE or FARGATE_SPOTCapacity Provider
 * Choose how your Task will be triggered
   * Event Bridge Scheduling:
     * Un-comment terraform/main/ecs_eventbridge.tf

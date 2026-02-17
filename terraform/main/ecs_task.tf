@@ -8,6 +8,9 @@ resource "aws_ecs_task_definition" "task_definition" {
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
+  # Add tags to ensure ECS tasks inherit the awsApplication tag for cost tracking
+  tags = data.terraform_remote_state.app_bootstrap.outputs.app_tags
+
   runtime_platform {
     # Options: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#runtime-platform
     # Typical Options: LINUX, WINDOWS_SERVER_2022_FULL, WINDOWS_SERVER_2022_CORE, WINDOWS_SERVER_2019_FULL, WINDOWS_SERVER_2019_CORE

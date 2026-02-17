@@ -45,5 +45,6 @@
         "**/*.pyc": true,
         "**/*.pyo": true,
         "**/*.pyd": true
-    }
+    },
+    "cursorpyright.analysis.typeCheckingMode": "basic"
 }
