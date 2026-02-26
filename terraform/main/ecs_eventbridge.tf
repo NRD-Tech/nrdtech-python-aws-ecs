@@ -1,119 +1,111 @@
-# resource "aws_cloudwatch_event_rule" "ecs_rule" {
-#   # Must be no longer than 64 characters
-#   name                = "${var.app_ident}-ecs-rule"
-#   schedule_expression = "cron(0 * * * ? *)"
-#
-#   # NOTE: All environments except prod are disabled by default here
-#   state = var.environment == "prod" ? "ENABLED" : "DISABLED"
-# }
+# ECS trigger: EventBridge schedule (RunTask on cron)
+# Active when trigger_type = "ecs_eventbridge"
 
-# locals {
-#   ecs_target = var.launch_type == "FARGATE" ? {
-#     task_definition_arn        = aws_ecs_task_definition.task_definition.arn
-#     launch_type                = "FARGATE"
-#     capacity_provider_strategy = []
-#     network_configuration = {
-#       subnets          = data.aws_subnets.public.ids
-#       assign_public_ip = true
-#     }
-#   } : var.launch_type == "FARGATE_SPOT" ? {
-#     task_definition_arn        = aws_ecs_task_definition.task_definition.arn
-#     launch_type                = null
-#     capacity_provider_strategy = [{
-#       capacity_provider = "FARGATE_SPOT"
-#       weight            = 1
-#     }]
-#     network_configuration = {
-#       subnets          = data.aws_subnets.public.ids
-#       assign_public_ip = true
-#     }
-#   } : {
-#     task_definition_arn        = aws_ecs_task_definition.task_definition.arn
-#     launch_type                = "EC2"
-#     capacity_provider_strategy = []
-#     network_configuration      = null
-#   }
-# }
+locals {
+  ecs_eventbridge_target = var.launch_type == "FARGATE" ? {
+    task_definition_arn        = aws_ecs_task_definition.task_definition.arn
+    launch_type                = "FARGATE"
+    capacity_provider_strategy = []
+    network_configuration = {
+      subnets          = data.aws_subnets.public.ids
+      assign_public_ip = true
+    }
+  } : var.launch_type == "FARGATE_SPOT" ? {
+    task_definition_arn        = aws_ecs_task_definition.task_definition.arn
+    launch_type                = null
+    capacity_provider_strategy = [{ capacity_provider = "FARGATE_SPOT", weight = 1 }]
+    network_configuration = {
+      subnets          = data.aws_subnets.public.ids
+      assign_public_ip = true
+    }
+  } : {
+    task_definition_arn        = aws_ecs_task_definition.task_definition.arn
+    launch_type                = "EC2"
+    capacity_provider_strategy = []
+    network_configuration      = null
+  }
+}
 
+resource "aws_cloudwatch_event_rule" "ecs_rule" {
+  count = var.trigger_type == "ecs_eventbridge" ? 1 : 0
 
-# resource "aws_cloudwatch_event_target" "ecs_target" {
-#   rule     = aws_cloudwatch_event_rule.ecs_rule.name
-#   arn      = aws_ecs_cluster.ecs.arn
-#   role_arn = aws_iam_role.execution_role.arn
-#   dead_letter_config {
-#     arn = aws_sqs_queue.eventbridge_rule_dlq.arn
-#   }
+  name                = "${var.app_ident}-ecs-rule"
+  schedule_expression = "cron(0 * * * ? *)"
+  state               = var.environment == "prod" ? "ENABLED" : "DISABLED"
+}
 
-#   ecs_target {
-#     task_definition_arn = local.ecs_target.task_definition_arn
+resource "aws_sqs_queue" "eventbridge_rule_dlq" {
+  count = var.trigger_type == "ecs_eventbridge" ? 1 : 0
 
-#     # Handle launch_type or capacity_provider_strategy
-#     dynamic "capacity_provider_strategy" {
-#       for_each = lookup(local.ecs_target, "capacity_provider_strategy", [])
-#       content {
-#         capacity_provider = capacity_provider_strategy.value.capacity_provider
-#         weight            = capacity_provider_strategy.value.weight
-#       }
-#     }
+  name = "${var.app_ident}-eventbridge-rule-dlq"
+}
 
-#     # Direct launch_type for FARGATE and EC2
-#     launch_type = lookup(local.ecs_target, "launch_type", null)
+resource "aws_iam_role" "eventbridge_execution_role" {
+  count = var.trigger_type == "ecs_eventbridge" ? 1 : 0
 
-#     # Network configuration for FARGATE and FARGATE_SPOT
-#     dynamic "network_configuration" {
-#       for_each = lookup(local.ecs_target, "network_configuration", []) != null ? [1] : []
-#       content {
-#         subnets          = local.ecs_target.network_configuration.subnets
-#         assign_public_ip = local.ecs_target.network_configuration.assign_public_ip
-#       }
-#     }
-#   }
-# }
+  name = "${var.app_ident}-target-execution-role"
 
-# resource "aws_sqs_queue" "eventbridge_rule_dlq" {
-#   name = "${var.app_ident}-eventbridge-rule-dlq"
-# }
+  assume_role_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "events.amazonaws.com" }
+      Effect    = "Allow"
+    }]
+  })
+}
 
-# resource "aws_iam_role" "execution_role" {
-#   name = "${var.app_ident}-target-execution-role"
+resource "aws_iam_policy" "eventbridge_execution_role_policy" {
+  count = var.trigger_type == "ecs_eventbridge" ? 1 : 0
 
-#   assume_role_policy = jsonencode({
-#     Version   = "2012-10-17",
-#     Statement = [
-#       {
-#         Action    = "sts:AssumeRole",
-#         Principal = {
-#           Service = "events.amazonaws.com"
-#         },
-#         Effect = "Allow",
-#       },
-#     ]
-#   })
-# }
+  name = "${var.app_ident}-eventbridge-role-policy"
 
-# resource "aws_iam_policy" "execution_role_policy" {
-#   name        = "${var.app_ident}-role-policy"
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ecs:RunTask", "ecs:StopTask", "iam:PassRole", "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+      Resource = "*"
+    }]
+  })
+}
 
-#   policy = jsonencode({
-#     Version   = "2012-10-17",
-#     Statement = [
-#       {
-#         "Effect": "Allow",
-#         "Action": [
-#           "ecs:RunTask",
-#           "ecs:StopTask",
-#           "iam:PassRole",
-#           "logs:CreateLogGroup",
-#           "logs:CreateLogStream",
-#           "logs:PutLogEvents"
-#         ],
-#         "Resource": "*"
-#       }
-#     ]
-#   })
-# }
+resource "aws_iam_role_policy_attachment" "eventbridge_execution_role_policy_attachment" {
+  count = var.trigger_type == "ecs_eventbridge" ? 1 : 0
 
-# resource "aws_iam_role_policy_attachment" "cm_execution_role_policy_attachment" {
-#   role       = aws_iam_role.execution_role.name
-#   policy_arn = aws_iam_policy.execution_role_policy.arn
-# }
+  role       = aws_iam_role.eventbridge_execution_role[0].name
+  policy_arn = aws_iam_policy.eventbridge_execution_role_policy[0].arn
+}
+
+resource "aws_cloudwatch_event_target" "ecs_target" {
+  count = var.trigger_type == "ecs_eventbridge" ? 1 : 0
+
+  rule     = aws_cloudwatch_event_rule.ecs_rule[0].name
+  arn      = aws_ecs_cluster.ecs.arn
+  role_arn = aws_iam_role.eventbridge_execution_role[0].arn
+
+  dead_letter_config {
+    arn = aws_sqs_queue.eventbridge_rule_dlq[0].arn
+  }
+
+  ecs_target {
+    task_definition_arn = local.ecs_eventbridge_target.task_definition_arn
+    launch_type         = lookup(local.ecs_eventbridge_target, "launch_type", null)
+
+    dynamic "capacity_provider_strategy" {
+      for_each = lookup(local.ecs_eventbridge_target, "capacity_provider_strategy", [])
+      content {
+        capacity_provider = capacity_provider_strategy.value.capacity_provider
+        weight            = capacity_provider_strategy.value.weight
+      }
+    }
+
+    dynamic "network_configuration" {
+      for_each = lookup(local.ecs_eventbridge_target, "network_configuration", null) != null ? [1] : []
+      content {
+        subnets          = local.ecs_eventbridge_target.network_configuration.subnets
+        assign_public_ip = local.ecs_eventbridge_target.network_configuration.assign_public_ip
+      }
+    }
+  }
+}

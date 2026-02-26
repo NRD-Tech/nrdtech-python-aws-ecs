@@ -1,4 +1,8 @@
 {
+    // Terraform: root module is in terraform/main (so variables.tf and var.* are resolved)
+    "terraform.rootModulePaths": ["terraform/main"],
+    "terraform-ls.rootModules": ["terraform/main"],
+
     // Window Settings
     "window.title": "${rootName}",
 
