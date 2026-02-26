@@ -1,285 +1,160 @@
-# Python AWS Lambda App
-This is a project template for a python application that will be triggered either by an Event Bridge schedule, an SQS queue, or an API Gateway endpoint
+# Python AWS ECS App
 
-# Technology Stack
-* Python 3.12
-* Docker
-* Terraform
+Template for a **Python 3.12** app running on **AWS ECS (Fargate)**. The app is packaged as a Docker image (ECR) and can run in one of two modes, selected by `TRIGGER_TYPE`:
 
-# Setting Up Your Development Environment
+- **ecs_eventbridge** – Scheduled task: EventBridge cron runs the ECS task (with optional SQS DLQ).
+- **ecs_service** – Always-on service: ECS Service behind an Application Load Balancer (optional HTTPS + Route53 when `api_domain` / `api_root_domain` are set).
 
-## Clone and Clean the template (if using GitHub)
-* Navigate to: https://github.com/NRD-Tech/nrdtech-python-aws-lambda.git
-* Log into your GitHub account (otherwise the "Use this template" option will not show up)
-* Click "Use this template" in the top right corner
-  * Create a new repository
-* Fill in your repository name, description, and public/private setting
-* Clone your newly created repository
-* If you want to change the license to be proprietary follow these instructions: [Go to Proprietary Licensing Section](#how-to-use-this-template-for-a-proprietary-project)
+## Technology stack
 
-## Clone and Clean the template (if NOT using GitHub)
-```
-git clone https://github.com/NRD-Tech/nrdtech-python-aws-lambda.git my-project
-cd my-project
-rm -fR .git venv .idea
-git init
-git add .
-git commit -m 'init'
-```
-* If you want to change the license to be proprietary follow these instructions: [Go to Proprietary Licensing Section](#how-to-use-this-template-for-a-proprietary-project)
+- Python 3.12, Poetry
+- Docker
+- Terraform (bootstrap + main; state in S3)
+- GitHub Actions (test, deploy staging/prod, destroy via tags)
 
-## Dev Environment Pre-Requisites
-1. Make sure Python 3.12 and Poetry are installed on your computer
-```
-# Mac Terminal
-# Install brew if you haven't already
-# /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+## Local development
 
+### Prerequisites
+
+- Python 3.12 and Poetry
+
+```bash
+# macOS
 brew install python@3.12 poetry
-```
-```
-# Windows PowerShell (run as an Administrator)
-# Install choco if you haven't already
-# https://chocolatey.org/install
-
-# Install Python 3.12
-choco install python --version=3.12 -y
-
-# Install Poetry globally
-$env:POETRY_HOME = "C:\Program Files\Poetry"
-(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
-
-# Put Poetry and Python in the PATH
-[System.Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Program Files\Poetry\bin", [System.EnvironmentVariableTarget]::Machine)
-
-# NOTE: You will need to open a new terminal after adding Poetry and Python to your PATH for it to take effect
-```
-2. Tell poetry to create virtual environments in the project folder
-```
 poetry config virtualenvs.in-project true
 ```
 
-## VSCode Setup
-1. Open the folder containing the project
-2. Run the following in the terminal to set up the virtual environment
-```
-# Assure the use of python3.12
+### One-time setup
+
+```bash
 poetry env use python3.12
-
-# Set up the virtual environment and installs dependencies
 poetry install
-
-# Verify Python Version in Use
-poetry env info
-```
-3. Configure the Python Interpreter
-* Mac: Command-Shift-P -> Python: Select Interpreter
-* Windows: Control-Shift-P -> Python: Select Interpreter
-* Choose the Python in .venv/bin/python
-
-
-### PyCharm Setup
-1. Open the folder containing the project
-2. PyCharm should automatically detect the poetry project and offer to create the virtual environment - Click "OK"
-  * If it doesn't, go to Settings -> Project -> Project Interpreter
-  * Click Add Interpreter -> Add Local Interpreter
-  * Configure:
-    * Environment: Generate new
-    * Type: Poetry
-    * Base python: <path to your python 3.12>
-    * Path to poetry: <path to poetry>
-  * Click OK
-  * Note: Sometimes I need to restart PyCharm after this for it to recognize the new interpereter correctly
-3. Go to PyCharm Settings -> Project -> Project Structure
-  * Mark the app folder as "Sources"
-  * Mark the tests folder as "Tests"
-  * Click "OK"
-4. Run the following in the terminal
-```
-# Set up the virtual environment and installs dependencies
-poetry install
-
-# Verify Python Version in Use
-poetry env info
 ```
 
-## Create your .env file
-1. Create .env in your root folder and add at least the following:
+Create `.env` in the project root with at least:
+
 ```
 PYTHONPATH=app
 ```
 
-At this point you should have a fully working local development environment.  The steps below this are setting up to be able to deploy the project to AWS.
+### Run app locally
+
+Default (basic task):
+
+```bash
+poetry run python app/main.py
+```
+
+If using the FastAPI option (uncomment in `app/main.py` and Dockerfile):
+
+```bash
+poetry run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+```
+
+### Run tests
+
+```bash
+poetry run pytest tests/unit
+```
+
 ---
 
-# Configuring the App for AWS Deployment
+## AWS deployment
 
-## OIDC Pre-Requisite
-* You must have previously set up the AWS Role for OIDC and S3 bucket for the Terraform state files
-* The easiest way to do this is to use the NRD-Tech Terraform Bootstrap template
-  * https://github.com/NRD-Tech/nrdtech-terraform-aws-account-bootstrap
-  * After following the README.md instructions in the bootstrap template project you should have:
-    * An AWS Role ARN
-    * An AWS S3 bucket for the Terraform state files
+### Prerequisites
 
-## AWS Pre-Requisite
-* Configure VPC Subnets with names that have "private" or "public" in them
-  * Examples:
-    * public-subnet-west-2a
-    * private-subnet-west-2a
-  * Terraform uses this to determine in which subnets to deploy the tasks
+- AWS account with OIDC role and S3 bucket for Terraform state (e.g. [NRD-Tech Terraform Bootstrap](https://github.com/NRD-Tech/nrdtech-terraform-aws-account-bootstrap)).
+- VPC with subnets whose names contain `public` or `private` (used when EventBridge or ECS Service are enabled).
+- Docker running (for local deploys; image is built and pushed by Terraform).
 
-## Configure Settings
-* Edit .env.global
-  * Each config is a little different per application but at a minimum you will need to change:
-    * APP_IDENT_WITHOUT_ENV
-    * TERRAFORM_STATE_BUCKET
-    * AWS_DEFAULT_REGION
-    * AWS_ROLE_ARN
-    * LAUNCH_TYPE
-      * Specify one of these launch types: FARGATE or FARGATE_SPOTCapacity Provider
-* Choose how your Task will be triggered
-  * Event Bridge Scheduling:
-    * Un-comment terraform/main/ecs_eventbridge.tf
-    * Edit app/main.py to enable the appropriate section
-    * Edit Dockerfile at the bottom to start your task correctly
-  * ECS Service (always-on running service with 1+ tasks)
-    * Un-comment terraform/main/ecs_service.tf
-    * Edit app/main.py to enable the appropriate section
-    * Edit Dockerfile at the bottom to start your service correctly
-* Commit your changes to git
-```
-git add .
-git commit -a -m 'updated config'
-```
+### Configure
 
-## (If using Bitbucket) Enable Bitbucket Pipeline (NOTE: GitHub does not require any setup like this for the Actions to work)
-* Push your git project up into a new Bitbucket project
-* Navigate to your project on Bitbucket
-  * Click Repository Settings
-  * Click Pipelines->Settings
-    * Click Enable Pipelines
+Edit **`.env.global`**. At minimum set:
 
-## (If using GitHub) Configure the AWS Role
-* Edit .github/workflows/main.yml
-    * Set the pipeline role for role-to-assume
-    * Set the correct aws-region
+- `APP_IDENT_WITHOUT_ENV` – Short app name (e.g. `my-app`).
+- `TERRAFORM_STATE_BUCKET` – S3 bucket for Terraform state.
+- `AWS_DEFAULT_REGION` – e.g. `us-west-2`.
+- `AWS_ROLE_ARN` – OIDC role ARN for the pipeline.
+- `LAUNCH_TYPE` – `FARGATE` or `FARGATE_SPOT`.
+- `TRIGGER_TYPE` – `ecs_eventbridge` (scheduled task) or `ecs_service` (always-on with ALB).
+- `APP_CPU` / `APP_MEMORY` – Task size (e.g. `256` / `512`).
+- `CPU_ARCHITECTURE` – `X86_64` or `ARM64`.
+- `DESIRED_COUNT` – Number of tasks when using `ecs_service`.
 
-## Deploy to Staging
-```
-git checkout -b staging
-git push --set-upstream origin staging
+Optionally set **`.env.staging`** and **`.env.prod`** (e.g. `API_DOMAIN`, `API_ROOT_DOMAIN` when using `ecs_service` with custom domain).
+
+Trigger type is controlled only by `TRIGGER_TYPE`; no need to comment or uncomment Terraform files.
+
+### Deploy from your machine
+
+- **Staging:** `ENVIRONMENT=staging ./deploy.sh`
+- **Production:** `ENVIRONMENT=prod ./deploy.sh`
+- **Destroy:** `ENVIRONMENT=staging ./deploy.sh -d` or `ENVIRONMENT=prod ./deploy.sh -d`
+
+### Deploy via GitHub Actions
+
+- **Staging:** Push to `main` → workflow runs tests then deploys staging.
+- **Production:** Push a tag `v*` (e.g. `git tag v1.0.0 && git push origin v1.0.0`) → deploys production.
+- **Destroy staging:** Push tag `destroy-staging-*` (e.g. `destroy-staging-1`).
+- **Destroy production:** Push tag `destroy-prod-*` (e.g. `destroy-prod-1`).
+
+In **`.github/workflows/github_flow.yml`** the workflow loads `role-to-assume` and `aws-region` from `.env.global` (via the "Load configuration" step). Ensure those are set in `.env.global`; no hardcoded role in the workflow file.
+
+---
+
+## Run Docker image locally (ECS-style)
+
+Build and run the same image that ECS uses (replace with your ECR URL and region):
+
+```bash
+aws ecr get-login-password --region us-west-2 | \
+  docker login --username AWS --password-stdin <account>.dkr.ecr.us-west-2.amazonaws.com
+
+docker run --rm -p 8080:8080 <account>.dkr.ecr.us-west-2.amazonaws.com/<app_ident>_repository:latest
 ```
 
-## Deploy to Production
-```
-git checkout -b production
-git push --set-upstream origin production
-```
+For the default task image: container runs and exits. For FastAPI: `curl http://localhost:8080/ping`.
 
-## Un-Deploying in Bitbucket
-1. Navigate to the Bitbucket project website
-2. Click Pipelines in the left nav menu
-3. Click Run pipeline button
-4. Choose the branch you want to un-deploy
-5. Choose the appropriate un-deploy Pipeline
-   * un-deploy-staging
-   * un-deploy-production
-6. Click Run
+## Inspect Docker image
 
-# Poetry Cheat Sheet
-| **Action**                   | **Command**                                                                                  |
-|-------------------------------|----------------------------------------------------------------------------------------------|
-| **Install Poetry**            | `curl -sSL https://install.python-poetry.org | python3 -`                                   |
-|                               | `export PATH="$HOME/.local/bin:$PATH"`                                                      |
-|                               | `poetry --version`                                                                          |
-| **Initialize Project**        | New Project: `poetry new my_project`                                                        |
-|                               | Existing Project: `poetry init`                                                             |
-| **Add Dependencies**          | Regular: `poetry add requests`                                                              |
-|                               | Dev-only: `poetry add --dev pytest`                                                         |
-|                               | Specific Version: `poetry add flask@2.3.2`                                                 |
-|                               | From Git: `poetry add git+https://github.com/user/repo.git`                                  |
-|                               | With Extras: `poetry add pandas[all]`                                                      |
-| **Install Dependencies**      | `poetry install`                                                                            |
-| **Virtual Environment**       | Activate: `poetry shell`                                                                    |
-|                               | Run w/o Activate: `poetry run python script.py`                                             |
-|                               | Deactivate: `exit`                                                                          |
-| **Update Dependencies**       | Update All: `poetry update`                                                                 |
-|                               | Update Specific: `poetry update requests`                                                  |
-| **Remove Dependencies**       | `poetry remove requests`                                                                    |
-| **Lock File**                 | Regenerate: `poetry lock`                                                                   |
-| **Export Dependencies**       | `poetry export -f requirements.txt --output requirements.txt`                               |
-| **Check for Updates**         | `poetry show --outdated`                                                                    |
-| **Build & Publish**           | Build: `poetry build`                                                                       |
-|                               | Publish: `poetry publish --username <username> --password <password>`                       |
-| **Configure Poetry**          | Show Config: `poetry config --list`                                                        |
-|                               | Venv in Project: `poetry config virtualenvs.in-project true`                                |
-|                               | Unset Config: `poetry config --unset <key>`                                                |
-
-# Misc How-To's
-
-## How to use this template for a proprietary project
-This project's license (MIT License) allows for you to create proprietary code based on this template.
-
-Here are the steps to correctly do this:
-1. Replace the LICENSE file with your proprietary license terms if you wish to use your own license.
-2. Optionally, include a NOTICE file stating that the original work is licensed under the MIT License and specify the parts of the project that are governed by your proprietary license.
-
-## How to set up to use CodeArtifact dependencies
-
-### One Time: setup of pyproject.tml to access the CodeArtifact dependencies
-```
-# Get the Repo Endpoint and add it to your pyproject.toml
-export AWS_DEFAULT_REGION=us-east-1
-export AWS_ACCOUNT_ID=1234567890
-export CODEARTIFACT_DOMAIN=mycompanydomain
-export CODEARTIFACT_REPOSITORY=mycompany-py-repo
-export AWS_PROFILE=mycompany_aws_profile
-
-export CODEARTIFACT_URL=$(aws --region $AWS_DEFAULT_REGION codeartifact get-repository-endpoint --domain $CODEARTIFACT_DOMAIN --domain-owner $AWS_ACCOUNT_ID --repository $CODEARTIFACT_REPOSITORY --format pypi --query repositoryEndpoint --output text)
-poetry source add $CODEARTIFACT_DOMAIN $CODEARTIFACT_URL"simple" --priority=supplemental
+```bash
+docker inspect <account>.dkr.ecr.<region>.amazonaws.com/<app_ident>_repository:latest
 ```
 
-### Each Day: Authenticate with CodeArtifact to access the private dependencies
-```
-export AWS_DEFAULT_REGION=us-east-1
-export AWS_ACCOUNT_ID=1234567890
-export CODEARTIFACT_DOMAIN=mycompanydomain
-export AWS_PROFILE=mycompany_aws_profile
+---
 
-export CODEARTIFACT_TOKEN=$(aws --region $AWS_DEFAULT_REGION codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $AWS_ACCOUNT_ID --query authorizationToken --output text)
-poetry config http-basic.$CODEARTIFACT_DOMAIN aws $CODEARTIFACT_TOKEN
+## Poetry cheat sheet
+
+| Action                | Command |
+|-----------------------|--------|
+| Install dependencies  | `poetry install` |
+| Run script            | `poetry run python app/main.py` |
+| Run tests             | `poetry run pytest tests/unit` |
+| Add dependency        | `poetry add <package>` |
+| Add dev dependency    | `poetry add --group dev <package>` |
+| Export requirements   | `poetry export -f requirements.txt --output requirements.txt` |
+
+---
+
+## Misc
+
+### Proprietary use
+
+This project is under the MIT License. You may use it as a base for proprietary work; replace the LICENSE file and optionally add a NOTICE file as needed.
+
+### CodeArtifact (private Python packages)
+
+One-time: add the CodeArtifact source to `pyproject.toml` (see [Poetry docs](https://python-poetry.org/docs/repositories/)).
+
+Daily: obtain token and configure auth:
+
+```bash
+export CODEARTIFACT_TOKEN=$(aws codeartifact get-authorization-token --domain <domain> --domain-owner <account> --query authorizationToken --output text)
+poetry config http-basic.<domain> aws $CODEARTIFACT_TOKEN
 ```
 
-## How To run docker image locally
-```
-aws ecr get-login-password \
-      --region us-west-2 | \
-      docker login \
-        --username AWS \
-        --password-stdin 1234567890.dkr.ecr.us-west-2.amazonaws.com/my-test-project-prod_repository
+Uncomment the CodeArtifact block in `.env.global` and the Dockerfile if the image build needs private packages.
 
-docker run --rm -p 9000:8080 -it 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:latest 
+### Architecture
 
-curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}'
-
-```
-
-# How To Inspect docker image
-```
-alias dive="docker run -ti --rm  -v /var/run/docker.sock:/var/run/docker.sock wagoodman/dive"
-dive 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository:latest
-```
-
-# How to view the architecture (and other info) of a docker image
-```
-export AWS_PROFILE=mycompanyprofile
-docker logout 1234567890.dkr.ecr.us-west-2.amazonaws.com
-aws ecr get-login-password \
-      --region us-west-2 | \
-      docker login \
-        --username AWS \
-        --password-stdin 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository
-docker pull 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository
-docker inspect 1234567890.dkr.ecr.us-west-2.amazonaws.com/myapp_lambda_repository
-```
+See **`architecture.md`** in the repo root for diagrams and a short architecture description.
