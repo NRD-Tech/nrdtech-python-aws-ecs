@@ -5,9 +5,10 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
       - 'destroy-staging-*'
       - 'destroy-prod-*'
+  release:
+    types: [published]
   pull_request:
     branches:
       - main
@@ -36,10 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -59,20 +60,18 @@ jobs:
   deploy-staging:
     needs: test
     runs-on: ubuntu-latest
-    if: |
-      github.ref == 'refs/heads/main' &&
-      !startsWith(github.ref, 'refs/tags/destroy-')
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       id-token: write
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Load configuration
         id: config
         run: |
-          source .env.global
+          source config.global
           echo "aws-role-arn=$AWS_ROLE_ARN" >> $GITHUB_OUTPUT
           echo "aws-region=$AWS_DEFAULT_REGION" >> $GITHUB_OUTPUT
 
@@ -83,12 +82,12 @@ jobs:
           aws-region: ${{ steps.config.outputs.aws-region }}
 
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.10.3
 
       - name: Docker Setup Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Deploy to Staging
         run: |
@@ -98,20 +97,18 @@ jobs:
   deploy-production:
     needs: test
     runs-on: ubuntu-latest
-    if: |
-      startsWith(github.ref, 'refs/tags/v') &&
-      !startsWith(github.ref, 'refs/tags/destroy-')
+    if: github.event_name == 'release'
     permissions:
       id-token: write
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Load configuration
         id: config
         run: |
-          source .env.global
+          source config.global
           echo "aws-role-arn=$AWS_ROLE_ARN" >> $GITHUB_OUTPUT
           echo "aws-region=$AWS_DEFAULT_REGION" >> $GITHUB_OUTPUT
 
@@ -122,12 +119,12 @@ jobs:
           aws-region: ${{ steps.config.outputs.aws-region }}
 
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.10.3
 
       - name: Docker Setup Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Deploy to Production
         run: |
@@ -143,12 +140,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Load configuration
         id: config
         run: |
-          source .env.global
+          source config.global
           echo "aws-role-arn=$AWS_ROLE_ARN" >> $GITHUB_OUTPUT
           echo "aws-region=$AWS_DEFAULT_REGION" >> $GITHUB_OUTPUT
 
@@ -159,12 +156,12 @@ jobs:
           aws-region: ${{ steps.config.outputs.aws-region }}
 
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.10.3
 
       - name: Docker Setup Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Destroy Staging
         run: |
@@ -180,12 +177,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Load configuration
         id: config
         run: |
-          source .env.global
+          source config.global
           echo "aws-role-arn=$AWS_ROLE_ARN" >> $GITHUB_OUTPUT
           echo "aws-region=$AWS_DEFAULT_REGION" >> $GITHUB_OUTPUT
 
@@ -196,12 +193,12 @@ jobs:
           aws-region: ${{ steps.config.outputs.aws-region }}
 
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.10.3
 
       - name: Docker Setup Buildx
-        uses: docker/setup-buildx-action@v2.0.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Destroy Production
         run: |
