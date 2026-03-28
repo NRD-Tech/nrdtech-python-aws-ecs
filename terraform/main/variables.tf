@@ -48,17 +48,17 @@ variable "cpu_architecture" {
 }
 
 ##################################################
-# Trigger type: ecs_eventbridge or ecs_service
-# Set in .env.global / .env.<env>. Use "none" only for two-phase apply when switching triggers.
+# Trigger type: ecs_api_service, ecs_background_service, or ecs_eventbridge
+# Set in config.global / config.<env>. Use "none" only for two-phase apply when switching triggers.
 ##################################################
 variable "trigger_type" {
-  description = "ECS trigger: ecs_eventbridge (scheduled task) or ecs_service (always-on with ALB). Use 'none' only for internal two-phase apply."
+  description = "ECS trigger: ecs_api_service (ALB + service), ecs_background_service (service, no ALB), or ecs_eventbridge (scheduled). Use 'none' only for two-phase apply."
   type        = string
   default     = "ecs_eventbridge"
 }
 
 ##################################################
-# API / ALB variables (only when trigger_type = ecs_service and using custom domain)
+# API / ALB variables (only when trigger_type = ecs_api_service and using custom domain)
 ##################################################
 variable "api_domain" {
   type    = string

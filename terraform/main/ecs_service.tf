@@ -1,9 +1,9 @@
 # ECS trigger: Always-on ECS Service behind ALB
-# Active when trigger_type = "ecs_service"
+# Active when trigger_type = "ecs_api_service" (or legacy "ecs_service")
 # Set api_domain and api_root_domain for HTTPS + Route53 (optional).
 
 locals {
-  ecs_service_enabled         = var.trigger_type == "ecs_service"
+  ecs_service_enabled         = var.trigger_type == "ecs_api_service" || var.trigger_type == "ecs_service"
   ecs_service_domain_enabled  = local.ecs_service_enabled && var.api_domain != "" && var.api_root_domain != ""
   ecs_service_capacity_provider_strategy = var.launch_type == "FARGATE" ? tolist([{ capacity_provider = "FARGATE", weight = 1 }]) : var.launch_type == "FARGATE_SPOT" ? tolist([{ capacity_provider = "FARGATE", weight = 3 }, { capacity_provider = "FARGATE_SPOT", weight = 7 }]) : tolist([{ capacity_provider = "EC2", weight = 1 }])
 }
