@@ -2,7 +2,7 @@
 
 # IAM Role for ECS Task Execution
 resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "ecs_task_execution_role_${var.app_ident}"
+  name = "ecs_task_execution_role_${var.APP_IDENT}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -27,7 +27,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy2" {
 ################# TASK ROLE
 
 resource "aws_iam_role" "ecs_task_role" {
-  name = "ecs_task_role_${var.app_ident}"
+  name = "ecs_task_role_${var.APP_IDENT}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -42,7 +42,7 @@ resource "aws_iam_role" "ecs_task_role" {
 }
 
 resource "aws_iam_policy" "ecs_task_policy" {
-  name = "ecs_task_log_policy_${var.app_ident}"
+  name = "ecs_task_log_policy_${var.APP_IDENT}"
 
   policy = jsonencode({
     Version = "2012-10-17"

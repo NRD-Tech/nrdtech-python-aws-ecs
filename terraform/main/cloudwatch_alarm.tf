@@ -1,23 +1,23 @@
-# ECS Service failure alarm (optional; only when trigger_type = ecs_service and prod)
-# NOTE: Template placeholder - wire SNS and dimensions for your service as needed.
+# ECS Service failure alarm (optional; only when an API service trigger is active and ENVIRONMENT = prod)
+# NOTE: Template placeholder - wire SNS subscriptions and dimensions for your service as needed.
 
 resource "aws_sns_topic" "ecs_alerts" {
-  count = var.trigger_type == "ecs_service" && var.environment == "prod" ? 1 : 0
+  count = local.ecs_api_service_enabled && var.ENVIRONMENT == "prod" ? 1 : 0
 
-  name = "${var.app_ident}-alerts"
+  name = "${var.APP_IDENT}-alerts"
 }
 
 resource "aws_cloudwatch_metric_alarm" "ecs_failure_alarm" {
-  count = var.trigger_type == "ecs_service" && var.environment == "prod" ? 1 : 0
+  count = local.ecs_api_service_enabled && var.ENVIRONMENT == "prod" ? 1 : 0
 
-  alarm_name          = "${var.app_ident}-ecs-failure-alarm"
-  alarm_description   = "Alarm when ${var.app_ident} ECS service tasks fail"
-  comparison_operator  = "GreaterThanThreshold"
-  evaluation_periods   = 1
-  datapoints_to_alarm  = 1
-  threshold            = 0
-  alarm_actions        = [aws_sns_topic.ecs_alerts[0].arn]
-  treat_missing_data   = "notBreaching"
+  alarm_name          = "${var.APP_IDENT}-ecs-failure-alarm"
+  alarm_description   = "Alarm when ${var.APP_IDENT} ECS service tasks fail"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 0
+  alarm_actions       = [aws_sns_topic.ecs_alerts[0].arn]
+  treat_missing_data  = "notBreaching"
 
   metric_query {
     id = "e1"
@@ -28,7 +28,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_failure_alarm" {
       stat        = "Sum"
       dimensions = {
         ClusterName = element(split("/", aws_ecs_cluster.ecs.arn), 1)
-        ServiceName = "${var.app_ident}-service"
+        ServiceName = "${var.APP_IDENT}-service"
       }
     }
     return_data = true

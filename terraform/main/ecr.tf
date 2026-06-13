@@ -1,12 +1,12 @@
 resource "aws_ecr_repository" "ecr_repository" {
-  name = "${var.app_ident}_repository"
+  name = "${var.APP_IDENT}_repository"
   image_tag_mutability = "MUTABLE"
   force_delete = true
 }
 
 resource "aws_ecr_lifecycle_policy" "lifecycle_policy" {
   depends_on = [ aws_ecr_repository.ecr_repository ]
-  repository = "${var.app_ident}_repository"
+  repository = "${var.APP_IDENT}_repository"
 
   policy = jsonencode({
     rules = [
@@ -29,13 +29,13 @@ resource "aws_ecr_lifecycle_policy" "lifecycle_policy" {
 # Single platform and no attestations so ECR image uses a manifest type Lambda/ECS support (Docker v2 / OCI).
 # Attestations or manifest lists would be rejected.
 locals {
-  docker_platform = var.cpu_architecture == "ARM64" ? "linux/arm64" : "linux/amd64"
+  docker_platform = var.CPU_ARCHITECTURE == "ARM64" ? "linux/arm64" : "linux/amd64"
   docker_command  = "docker buildx build --platform ${local.docker_platform} --provenance=false --sbom=false"
 }
 
 resource "null_resource" "push_image" {
   triggers = {
-    code_hash = filemd5(var.code_hash_file)
+    code_hash = filemd5(var.CODE_HASH_FILE)
     ecr_repo = aws_ecr_repository.ecr_repository.repository_url
     force = 5
   }
@@ -64,7 +64,7 @@ resource "null_resource" "push_image" {
     ${local.docker_command} \
       --no-cache \
       --push \
-      --build-arg CODEARTIFACT_TOKEN="${var.codeartifact_token}" \
+      --build-arg CODEARTIFACT_TOKEN="${var.CODEARTIFACT_TOKEN}" \
       -t ${aws_ecr_repository.ecr_repository.repository_url}:${self.triggers.code_hash} \
       -t ${aws_ecr_repository.ecr_repository.repository_url}:latest \
       .

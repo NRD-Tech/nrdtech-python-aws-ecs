@@ -50,7 +50,7 @@ def test_app_types_and_trigger_map_consistent():
 
 
 def test_ecs_app_types():
-    assert setup_project.APP_TYPES == ("api", "background_service", "scheduled")
+    assert setup_project.APP_TYPES == ("api", "internal_api", "background_service", "scheduled")
 
 
 def test_legacy_trigger_type_reverse():
@@ -152,6 +152,47 @@ def test_non_interactive_full_run_writes_configs(tmp_path, monkeypatch):
     assert "FastAPI" in main_py
 
     # Verify Dockerfile has uvicorn CMD
+    df = dockerfile.read_text()
+    assert "uvicorn" in df
+
+
+def test_non_interactive_internal_api_type(tmp_path, monkeypatch):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    (app_dir / "main.py").write_text("print('hello')\n")
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM python:3.12-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+
+    monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
+    monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
+    monkeypatch.setattr(setup_project, "CONFIG_STAGING", str(tmp_path / "config.staging"))
+    monkeypatch.setattr(setup_project, "CONFIG_PROD", str(tmp_path / "config.prod"))
+    monkeypatch.setattr(setup_project, "MAIN_PY_PATH", str(app_dir / "main.py"))
+    monkeypatch.setattr(setup_project, "DOCKERFILE_PATH", str(dockerfile))
+
+    orig = sys.argv
+    try:
+        sys.argv = [
+            "setup.py", "--non-interactive",
+            "--app-type", "internal_api",
+            "--app-name", "internal-app",
+            "--terraform-state-bucket", "my-bucket",
+            "--aws-role-arn", "arn:aws:iam::999:role/test",
+        ]
+        result = setup_project.main()
+        assert result == 0
+    finally:
+        sys.argv = orig
+
+    global_text = (tmp_path / "config.global").read_text()
+    assert "export trigger_type=ecs_internal_api_service" in global_text
+
+    # Internal API uses the same FastAPI app template and uvicorn CMD as the public API
+    main_py = (app_dir / "main.py").read_text()
+    assert "FastAPI" in main_py
     df = dockerfile.read_text()
     assert "uvicorn" in df
 

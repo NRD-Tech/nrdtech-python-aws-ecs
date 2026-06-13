@@ -2,8 +2,10 @@
 # Configuration
 #########################################################
 # Used to identify the application in AWS resources | allowed characters: a-zA-Z0-9-_
-# NOTE: Max length is 20 characters
+# NOTE: This must be no longer than 20 characters long
 export APP_IDENT_WITHOUT_ENV=my-test-project
+export APP_IDENT="${APP_IDENT_WITHOUT_ENV}-${ENVIRONMENT}"
+export TERRAFORM_STATE_IDENT=$APP_IDENT
 
 # This is the AWS S3 bucket in which you are storing your terraform state files
 # - This must exist before deploying
@@ -23,19 +25,20 @@ export APP_MEMORY=512  # memory in MB
 # This is either EC2, FARGATE, or FARGATE_SPOT
 export LAUNCH_TYPE=FARGATE
 
-# ECS trigger: ecs_eventbridge (scheduled task) or ecs_service (always-on with ALB)
-export TRIGGER_TYPE=ecs_eventbridge
-
-# Number of tasks in an ECS Service
-export DESIRED_COUNT=1
-
 # Must be one of these: X86_64, ARM64
 # NOTE: If deploying to EC2 you must choose the same architecture as your instances
 # NOTE2: Only GitHub supports ARM64 builds - Bitbucket doesn't
+# NOTE3: In GitHub the build by default will be slow on ARM64. To speed this up,
+#        create an ARM64 GitHub-hosted runner and use that instead.
 export CPU_ARCHITECTURE=X86_64
 
-# For Custom VPC
-# - Uncomment sections in main.tf
+# ECS trigger: ecs_eventbridge (scheduled), ecs_api_service (public ALB + service),
+# ecs_internal_api_service (internal ALB + service, VPC-only), or ecs_background_service (service, no ALB).
+# Set in config.<env> to override. Use "none" only for internal two-phase apply.
+export trigger_type=ecs_eventbridge
+
+# Optional: set VPC_NAME to a tag:Name value to use a custom VPC; leave unset for default VPC
+# export VPC_NAME=my-standard-vpc
 
 #########################################################
 # Create code hash
@@ -47,13 +50,5 @@ export CPU_ARCHITECTURE=X86_64
 export CODE_HASH_FILE=code_hash.txt
 docker run --rm -v $(pwd):/workdir -w /workdir alpine sh -c \
   "apk add --no-cache findutils coreutils && \
-   find . -type f -path './.git*' -prune -o -path './.github*' -prune -o \( -name '*.py' -o -name '*.sh' -o -name 'Dockerfile' -o -name 'pyproject.toml' -o -name 'poetry.lock' -o -name '.env.*' \) \
+   find . -type f -path './.git*' -prune -o -path './.github*' -prune -o \( -name '*.py' -o -name '*.sh' -o -name 'Dockerfile' -o -name 'pyproject.toml' -o -name 'poetry.lock' -o -name 'config.*' \) \
    -exec md5sum {} + | sort | md5sum | cut -d ' ' -f1 > terraform/main/${CODE_HASH_FILE}"
-
-# UN-COMMENT THIS AND SET APPROPRIATE VALUES IF USING CODE ARTIFACT:
-# #########################################################
-# # Getting CodeArtifact authorization
-# #########################################################
-# export AWS_ACCOUNT_ID=1234567890
-# export CODEARTIFACT_DOMAIN=mycompany
-# export CODEARTIFACT_TOKEN=$(aws --region $AWS_DEFAULT_REGION codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $AWS_ACCOUNT_ID --query authorizationToken --output text)

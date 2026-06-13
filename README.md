@@ -1,9 +1,11 @@
 # Python AWS ECS App
 
-Template for a **Python 3.12** app running on **AWS ECS (Fargate)**. The app is packaged as a Docker image (ECR) and can run in one of two modes, selected by `TRIGGER_TYPE`:
+Template for a **Python 3.12** app running on **AWS ECS (Fargate)**. The app is packaged as a Docker image (ECR) and can run in one of these modes, selected by `trigger_type`:
 
 - **ecs_eventbridge** – Scheduled task: EventBridge cron runs the ECS task (with optional SQS DLQ).
-- **ecs_service** – Always-on service: ECS Service behind an Application Load Balancer (optional HTTPS + Route53 when `api_domain` / `api_root_domain` are set).
+- **ecs_api_service** (legacy alias `ecs_service`) – Always-on service: ECS Service behind a public Application Load Balancer (optional HTTPS + Route53 when `API_DOMAIN` / `API_ROOT_DOMAIN` are set).
+- **ecs_internal_api_service** – Internal API: same as above, but the ALB is **internal**, placed in private subnets, and only reachable from inside the VPC (service-to-service calls from ECS, EC2, or VPC-attached Lambda).
+- **ecs_background_service** – Always-on worker: ECS Service with no ALB.
 
 ## Technology stack
 
@@ -64,26 +66,26 @@ poetry run pytest tests/unit
 ### Prerequisites
 
 - AWS account with OIDC role and S3 bucket for Terraform state (e.g. [NRD-Tech Terraform Bootstrap](https://github.com/NRD-Tech/nrdtech-terraform-aws-account-bootstrap)).
-- VPC with subnets whose names contain `public` or `private` (used when EventBridge or ECS Service are enabled).
+- VPC with separate public and private subnets (detected via `map-public-ip-on-launch`; resources fall back to all VPC subnets when one side is empty, e.g. the default VPC).
 - Docker running (for local deploys; image is built and pushed by Terraform).
 
 ### Configure
 
-Edit **`.env.global`**. At minimum set:
+Run `python3 setup.py` (recommended), or edit **`config.global`** by hand. At minimum set:
 
 - `APP_IDENT_WITHOUT_ENV` – Short app name (e.g. `my-app`).
 - `TERRAFORM_STATE_BUCKET` – S3 bucket for Terraform state.
 - `AWS_DEFAULT_REGION` – e.g. `us-west-2`.
 - `AWS_ROLE_ARN` – OIDC role ARN for the pipeline.
 - `LAUNCH_TYPE` – `FARGATE` or `FARGATE_SPOT`.
-- `TRIGGER_TYPE` – `ecs_eventbridge` (scheduled task) or `ecs_service` (always-on with ALB).
+- `trigger_type` – `ecs_eventbridge` (scheduled), `ecs_api_service` (public ALB + service), `ecs_internal_api_service` (internal ALB + service, VPC-only), or `ecs_background_service` (service, no ALB).
 - `APP_CPU` / `APP_MEMORY` – Task size (e.g. `256` / `512`).
 - `CPU_ARCHITECTURE` – `X86_64` or `ARM64`.
-- `DESIRED_COUNT` – Number of tasks when using `ecs_service`.
+- Optional: `VPC_NAME` – tag:Name of a custom VPC; leave unset for the default VPC.
 
-Optionally set **`.env.staging`** and **`.env.prod`** (e.g. `API_DOMAIN`, `API_ROOT_DOMAIN` when using `ecs_service` with custom domain).
+In **`config.staging`** and **`config.prod`** set `MIN_COUNT` / `MAX_COUNT` (service task counts for auto-scaling) and `API_DOMAIN` / `API_ROOT_DOMAIN` when using a custom domain with an API trigger.
 
-Trigger type is controlled only by `TRIGGER_TYPE`; no need to comment or uncomment Terraform files.
+Trigger type is controlled only by `trigger_type`; no need to comment or uncomment Terraform files.
 
 ### Deploy from your machine
 
@@ -98,7 +100,7 @@ Trigger type is controlled only by `TRIGGER_TYPE`; no need to comment or uncomme
 - **Destroy staging:** Push tag `destroy-staging-*` (e.g. `destroy-staging-1`).
 - **Destroy production:** Push tag `destroy-prod-*` (e.g. `destroy-prod-1`).
 
-In **`.github/workflows/github_flow.yml`** the workflow loads `role-to-assume` and `aws-region` from `.env.global` (via the "Load configuration" step). Ensure those are set in `.env.global`; no hardcoded role in the workflow file.
+In **`.github/workflows/github_flow.yml`** the workflow loads `role-to-assume` and `aws-region` from `config.global` (via the "Load configuration" step). Ensure those are set in `config.global`; no hardcoded role in the workflow file.
 
 ---
 
@@ -153,7 +155,7 @@ export CODEARTIFACT_TOKEN=$(aws codeartifact get-authorization-token --domain <d
 poetry config http-basic.<domain> aws $CODEARTIFACT_TOKEN
 ```
 
-Uncomment the CodeArtifact block in `.env.global` and the Dockerfile if the image build needs private packages.
+Uncomment the CodeArtifact block in `config.global` and the Dockerfile if the image build needs private packages.
 
 ### Architecture
 

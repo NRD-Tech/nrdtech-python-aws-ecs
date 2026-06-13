@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Setup for AWS ECS (Python) template.
-Configures app type (api | background_service | scheduled),
+Configures app type (api | internal_api | background_service | scheduled),
 config.global / config.staging / config.prod, and Python source/Dockerfile.
 Auto-discovers OIDC role, Terraform state bucket, and Route53 domains.
 
@@ -24,10 +24,11 @@ CONFIG_PROD = os.path.join(SCRIPT_DIR, "config.prod")
 MAIN_PY_PATH = os.path.join(SCRIPT_DIR, "app", "main.py")
 DOCKERFILE_PATH = os.path.join(SCRIPT_DIR, "Dockerfile")
 
-APP_TYPES = ("api", "background_service", "scheduled")
+APP_TYPES = ("api", "internal_api", "background_service", "scheduled")
 
 TRIGGER_TYPE_MAP = {
     "api": "ecs_api_service",
+    "internal_api": "ecs_internal_api_service",
     "background_service": "ecs_background_service",
     "scheduled": "ecs_eventbridge",
 }
@@ -106,34 +107,29 @@ def _parse_export_file(path):
 
 def read_current_config():
     current = {}
-    # Try both config.* (new) and .env.* (legacy) naming
-    for global_path in [CONFIG_GLOBAL, os.path.join(SCRIPT_DIR, ".env.global")]:
-        g = _parse_export_file(global_path)
-        if g:
-            current["app_name"] = g.get("APP_IDENT_WITHOUT_ENV", "")
-            current["terraform_state_bucket"] = g.get("TERRAFORM_STATE_BUCKET", "")
-            current["aws_region"] = g.get("AWS_DEFAULT_REGION", "us-west-2")
-            current["aws_role_arn"] = g.get("AWS_ROLE_ARN", "")
-            current["app_cpu"] = g.get("APP_CPU", "256")
-            current["app_memory"] = g.get("APP_MEMORY", "512")
-            current["launch_type"] = g.get("LAUNCH_TYPE", "FARGATE")
-            current["cpu_architecture"] = g.get("CPU_ARCHITECTURE", "X86_64")
-            raw_tt = g.get("trigger_type", g.get("TRIGGER_TYPE", "ecs_eventbridge"))
-            current["app_type"] = TRIGGER_TYPE_REVERSE.get(raw_tt, "scheduled")
-            current["desired_count"] = g.get("DESIRED_COUNT", "1")
-            current["vpc_name"] = g.get("VPC_NAME", "")
-            break
-    for staging_path in [CONFIG_STAGING, os.path.join(SCRIPT_DIR, ".env.staging")]:
-        s = _parse_export_file(staging_path)
-        if s:
-            current["api_root_domain"] = s.get("API_ROOT_DOMAIN", "")
-            current["api_domain_staging"] = s.get("API_DOMAIN", "")
-            break
-    for prod_path in [CONFIG_PROD, os.path.join(SCRIPT_DIR, ".env.prod")]:
-        p = _parse_export_file(prod_path)
-        if p:
-            current["api_domain_prod"] = p.get("API_DOMAIN", "")
-            break
+    g = _parse_export_file(CONFIG_GLOBAL)
+    if g:
+        current["app_name"] = g.get("APP_IDENT_WITHOUT_ENV", "")
+        current["terraform_state_bucket"] = g.get("TERRAFORM_STATE_BUCKET", "")
+        current["aws_region"] = g.get("AWS_DEFAULT_REGION", "us-west-2")
+        current["aws_role_arn"] = g.get("AWS_ROLE_ARN", "")
+        current["app_cpu"] = g.get("APP_CPU", "256")
+        current["app_memory"] = g.get("APP_MEMORY", "512")
+        current["launch_type"] = g.get("LAUNCH_TYPE", "FARGATE")
+        current["cpu_architecture"] = g.get("CPU_ARCHITECTURE", "X86_64")
+        raw_tt = g.get("trigger_type", "ecs_eventbridge")
+        current["app_type"] = TRIGGER_TYPE_REVERSE.get(raw_tt, "scheduled")
+        current["vpc_name"] = g.get("VPC_NAME", "")
+    s = _parse_export_file(CONFIG_STAGING)
+    if s:
+        current["api_root_domain"] = s.get("API_ROOT_DOMAIN", "")
+        current["api_domain_staging"] = s.get("API_DOMAIN", "")
+        current["min_count"] = s.get("MIN_COUNT", "1")
+        current["max_count_staging"] = s.get("MAX_COUNT", "2")
+    p = _parse_export_file(CONFIG_PROD)
+    if p:
+        current["api_domain_prod"] = p.get("API_DOMAIN", "")
+        current["max_count_prod"] = p.get("MAX_COUNT", "2")
     return current
 
 
@@ -366,11 +362,8 @@ export LAUNCH_TYPE={launch_type}
 # NOTE2: Only GitHub supports ARM64 builds - Bitbucket doesn't
 export CPU_ARCHITECTURE={cpu_architecture}
 
-# ECS trigger type: ecs_api_service | ecs_background_service | ecs_eventbridge
+# ECS trigger type: ecs_api_service | ecs_internal_api_service | ecs_background_service | ecs_eventbridge
 export trigger_type={trigger_type}
-
-# Number of desired tasks in an ECS Service
-export DESIRED_COUNT={desired_count}
 
 # Optional: set VPC_NAME to a tag:Name value to use a custom VPC; leave unset for default VPC
 {vpc_line}
@@ -394,7 +387,6 @@ docker run --rm -v $(pwd):/workdir -w /workdir alpine sh -c \\
             launch_type=args.launch_type,
             cpu_architecture=args.cpu_architecture,
             trigger_type=trigger,
-            desired_count=getattr(args, "desired_count", "1"),
             vpc_line=vpc_line,
         ))
     print("Wrote config.global")
@@ -407,17 +399,26 @@ def write_config_staging(args):
 # NOTE: Variables set in here will activate only in a staging environment
 # export EXAMPLE_VAR="Hello from staging"
 
+# Optional: per-environment VPC override (tag:Name); most clients use default VPC or config.global
+# export VPC_NAME=Dev
+
 ####################################################################################################
 # API Service Configuration (only needed for app type 'api')
 # * The root domain MUST already exist in Route53 in your AWS account
 ####################################################################################################
 export API_ROOT_DOMAIN={api_root_domain}
 export API_DOMAIN={api_domain_staging}
+
+# Number of tasks in an ECS Service
+export MIN_COUNT={min_count}
+export MAX_COUNT={max_count}
 """
     with open(CONFIG_STAGING, "w", encoding="utf-8") as f:
         f.write(content.format(
             api_root_domain=api_root,
             api_domain_staging=api_staging,
+            min_count=getattr(args, "min_count", "1"),
+            max_count=getattr(args, "max_count_staging", "2"),
         ))
     print("Wrote config.staging")
 
@@ -429,17 +430,26 @@ def write_config_prod(args):
 # NOTE: Variables set in here will activate only in a production environment
 # export EXAMPLE_VAR="Hello from production"
 
+# Optional: per-environment VPC override (tag:Name); most clients use default VPC or config.global
+# export VPC_NAME=Prod
+
 ####################################################################################################
 # API Service Configuration (only needed for app type 'api')
 # * The root domain MUST already exist in Route53 in your AWS account
 ####################################################################################################
 export API_ROOT_DOMAIN={api_root_domain}
 export API_DOMAIN={api_domain_prod}
+
+# Number of tasks in an ECS Service
+export MIN_COUNT={min_count}
+export MAX_COUNT={max_count}
 """
     with open(CONFIG_PROD, "w", encoding="utf-8") as f:
         f.write(content.format(
             api_root_domain=api_root,
             api_domain_prod=api_prod,
+            min_count=getattr(args, "min_count", "1"),
+            max_count=getattr(args, "max_count_prod", "2"),
         ))
     print("Wrote config.prod")
 
@@ -448,10 +458,10 @@ export API_DOMAIN={api_domain_prod}
 # Project-specific: main.py and Dockerfile
 # ---------------------------------------------------------------------------
 def apply_main_py(app_type):
-    content = MAIN_PY_API if app_type == "api" else MAIN_PY_TASK
+    content = MAIN_PY_API if app_type in ("api", "internal_api") else MAIN_PY_TASK
     with open(MAIN_PY_PATH, "w", encoding="utf-8") as f:
         f.write(content)
-    if app_type == "api":
+    if app_type in ("api", "internal_api"):
         print("Enabled FastAPI in app/main.py (/ping, /healthcheck)")
     else:
         print("Enabled task main in app/main.py")
@@ -472,7 +482,7 @@ def apply_dockerfile(app_type):
     if cut_idx is None:
         return
 
-    new_tail = "\n" + (DOCKERFILE_CMD_API if app_type == "api" else DOCKERFILE_CMD_TASK)
+    new_tail = "\n" + (DOCKERFILE_CMD_API if app_type in ("api", "internal_api") else DOCKERFILE_CMD_TASK)
     with open(DOCKERFILE_PATH, "w", encoding="utf-8") as f:
         f.writelines(lines[:cut_idx])
         f.write(new_tail)
@@ -521,7 +531,7 @@ def _prompt_common(args, current, discovered):
         if not getattr(args, attr):
             setattr(args, attr, default)
 
-    if args.app_type == "api":
+    if args.app_type in ("api", "internal_api"):
         if not args.api_root_domain and discovered["route53_domains"]:
             args.api_root_domain = _choose_from_list("API root domain (Route53):", discovered["route53_domains"])
         if not args.api_root_domain:
@@ -531,10 +541,9 @@ def _prompt_common(args, current, discovered):
         if not args.api_domain_prod:
             args.api_domain_prod = prompt("API domain for prod", current.get("api_domain_prod", "api." + args.api_root_domain))
 
-    if not getattr(args, "desired_count", ""):
-        args.desired_count = current.get("desired_count", "1")
-    if not getattr(args, "vpc_name", ""):
-        args.vpc_name = current.get("vpc_name", "")
+    for attr, fallback in [("min_count", "1"), ("max_count_staging", "2"), ("max_count_prod", "2"), ("vpc_name", "")]:
+        if not getattr(args, attr, ""):
+            setattr(args, attr, current.get(attr, fallback))
 
 
 # ---------------------------------------------------------------------------
@@ -545,7 +554,7 @@ def main():
         description="Configure this AWS ECS (Python) project.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--app-type", choices=APP_TYPES, help="api | background_service | scheduled")
+    parser.add_argument("--app-type", choices=APP_TYPES, help="api | internal_api | background_service | scheduled")
     parser.add_argument("--app-name", default="", help="APP_IDENT_WITHOUT_ENV (max 20 chars)")
     parser.add_argument("--terraform-state-bucket", default="", help="S3 bucket for Terraform state")
     parser.add_argument("--aws-region", default="us-west-2", help="AWS region")
@@ -558,7 +567,9 @@ def main():
     parser.add_argument("--api-root-domain", default="", help="Root domain for API (api type only)")
     parser.add_argument("--api-domain-staging", default="", help="API domain for staging")
     parser.add_argument("--api-domain-prod", default="", help="API domain for prod")
-    parser.add_argument("--desired-count", default="1", help="DESIRED_COUNT for ECS service")
+    parser.add_argument("--min-count", default="1", help="MIN_COUNT for ECS service")
+    parser.add_argument("--max-count-staging", default="2", help="MAX_COUNT staging")
+    parser.add_argument("--max-count-prod", default="2", help="MAX_COUNT prod")
     parser.add_argument("--non-interactive", action="store_true", help="Fail if required args missing")
     args = parser.parse_args()
 
@@ -586,14 +597,13 @@ def main():
         for attr, default in defaults.items():
             if not getattr(args, attr):
                 setattr(args, attr, current.get(attr, default))
-        if args.app_type == "api":
+        if args.app_type in ("api", "internal_api"):
             args.api_root_domain = args.api_root_domain or current.get("api_root_domain", "example.com")
             args.api_domain_staging = args.api_domain_staging or current.get("api_domain_staging", "api-staging.example.com")
             args.api_domain_prod = args.api_domain_prod or current.get("api_domain_prod", "api.example.com")
-        if not getattr(args, "desired_count", ""):
-            args.desired_count = current.get("desired_count", "1")
-        if not getattr(args, "vpc_name", ""):
-            args.vpc_name = ""
+        for attr, fallback in [("min_count", "1"), ("max_count_staging", "2"), ("max_count_prod", "2"), ("vpc_name", "")]:
+            if not getattr(args, attr, ""):
+                setattr(args, attr, current.get(attr, fallback))
     else:
         _prompt_common(args, current, discovered)
 

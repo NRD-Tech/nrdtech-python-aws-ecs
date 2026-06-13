@@ -2,12 +2,14 @@
 
 ## Overview
 
-This template runs a **Python 3.12** app on **AWS ECS (Fargate)**. The app is packaged as a Docker image in ECR. One of two trigger modes is active at a time, selected by **`TRIGGER_TYPE`** in `.env.global`:
+This template runs a **Python 3.12** app on **AWS ECS (Fargate)**. The app is packaged as a Docker image in ECR. One trigger mode is active at a time, selected by **`trigger_type`** in `config.global`:
 
 - **ecs_eventbridge** – EventBridge cron runs the ECS task on a schedule (with SQS DLQ). No ECS Service or ALB.
-- **ecs_service** – ECS Service behind an Application Load Balancer (optional HTTPS + Route53 when `api_domain` / `api_root_domain` are set). No EventBridge rule.
+- **ecs_api_service** (legacy alias `ecs_service`) – ECS Service behind a public Application Load Balancer (optional HTTPS + Route53 when `API_DOMAIN` / `API_ROOT_DOMAIN` are set).
+- **ecs_internal_api_service** – Same, but the ALB is internal (VPC-only, private subnets).
+- **ecs_background_service** – ECS Service with no ALB (long-running worker).
 
-All Terraform is active; which resources are created is gated by `var.trigger_type` (no commented-out blocks). Switching triggers is done by changing `TRIGGER_TYPE` and re-deploying; a two-phase apply (trigger → `none` → desired trigger) runs automatically if Terraform reports a cycle.
+All Terraform is active; which resources are created is gated by `var.trigger_type` (no commented-out blocks). Switching triggers is done by changing `trigger_type` and re-deploying; a two-phase apply (trigger → `none` → desired trigger) runs automatically if Terraform reports a cycle.
 
 ## Technology stack
 
@@ -25,13 +27,14 @@ All Terraform is active; which resources are created is gated by `var.trigger_ty
 
 - **Always created:** ECS cluster, ECS task definition, ECR repo, image build/push (Terraform `null_resource`), task execution role, task role, CloudWatch log group, App Registry (bootstrap).
 - **When `trigger_type = "ecs_eventbridge"`:** EventBridge rule, EventBridge target, SQS DLQ, IAM role for EventBridge.
-- **When `trigger_type = "ecs_service"`:** Security groups (ECS + ALB), ALB, target group, HTTP listener, ECS Service. If `api_domain` and `api_root_domain` are set: Route53 zone data, ACM certificate, validation records, HTTPS listener, Route53 ALB alias.
-- **When `trigger_type = "ecs_service"` and `environment = "prod"`:** Optional CloudWatch alarm and SNS topic (see `cloudwatch_alarm.tf`).
+- **When `trigger_type = "ecs_api_service"` (legacy `ecs_service`):** Security groups (ECS + ALB), public ALB, target group, HTTP listener, ECS Service. If `API_DOMAIN` and `API_ROOT_DOMAIN` are set: Route53 zone data, ACM certificate, validation records, HTTPS listener, Route53 ALB alias.
+- **When `trigger_type = "ecs_internal_api_service"`:** Same as `ecs_api_service`, but the ALB is internal, placed in private subnets (falls back to all VPC subnets on the default VPC), ALB ingress is limited to the VPC CIDR, and the app port only accepts traffic from the ALB security group.
+- **When the service trigger is active and `ENVIRONMENT = "prod"`:** Optional CloudWatch alarm and SNS topic (see `cloudwatch_alarm.tf`).
 
 ## Deploy flow
 
 1. **GitHub Actions:** On push to `main`: test then `ENVIRONMENT=staging ./deploy.sh`. On tag `v*`: test then `ENVIRONMENT=prod ./deploy.sh`. Destroy via tags `destroy-staging-*` and `destroy-prod-*`.
-2. **deploy.sh:** Sources `.env.global`, `.env.<staging|prod>`, `.env.terraform`, then runs Terraform bootstrap, then Terraform main (or destroy with `-d`).
+2. **deploy.sh:** Sources `config.global` and `config.<staging|prod>`, then runs Terraform bootstrap, then Terraform main (or destroy with `-d`).
 3. **Terraform main:** ECR, Docker build/push, ECS cluster, task definition, IAM, CloudWatch; plus EventBridge or ECS Service/ALB (and optional domain) depending on `trigger_type`.
 
 ## Application modes
@@ -43,6 +46,6 @@ All Terraform is active; which resources are created is gated by `var.trigger_ty
 
 - AWS account with OIDC and S3 backend for Terraform state.
 - VPC with subnets tagged with `*public*` / `*private*` when using EventBridge or ECS Service.
-- In `.github/workflows/github_flow.yml`, role and region are read from `.env.global` (Load configuration step); set `AWS_ROLE_ARN` and `AWS_DEFAULT_REGION` there.
+- In `.github/workflows/github_flow.yml`, role and region are read from `config.global` (Load configuration step); set `AWS_ROLE_ARN` and `AWS_DEFAULT_REGION` there.
 
 For more detail on local run, deploy, and CI/CD, see **README.md**.
