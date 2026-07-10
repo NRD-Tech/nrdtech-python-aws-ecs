@@ -5,11 +5,8 @@ resource "aws_ecs_task_definition" "task_definition" {
   requires_compatibilities = [var.LAUNCH_TYPE == "FARGATE_SPOT" ? "FARGATE" : var.LAUNCH_TYPE]
   cpu                      = var.APP_CPU
   memory                   = var.APP_MEMORY
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  # Add tags to ensure ECS tasks inherit the awsApplication tag for cost tracking
-  tags = data.terraform_remote_state.app_bootstrap.outputs.app_tags
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn      = aws_iam_role.ecs_task_role.arn
 
   runtime_platform {
     # Options: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#runtime-platform

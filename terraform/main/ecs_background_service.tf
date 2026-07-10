@@ -34,9 +34,11 @@ resource "aws_ecs_service" "ecs_bg_service" {
   name            = "${var.APP_IDENT}-service"
   cluster         = aws_ecs_cluster.ecs.arn
   task_definition = aws_ecs_task_definition.task_definition.arn
-  desired_count   = var.MIN_COUNT
+  desired_count = var.MIN_COUNT
 
-  tags = data.terraform_remote_state.app_bootstrap.outputs.app_tags
+  # Propagate service tags (Environment/Repository/Project) onto running tasks
+  enable_ecs_managed_tags = true
+  propagate_tags          = "SERVICE"
 
   dynamic "capacity_provider_strategy" {
     for_each = local.bg_capacity_provider_strategy

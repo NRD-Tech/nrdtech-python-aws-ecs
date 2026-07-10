@@ -19,13 +19,17 @@ All Terraform is active; which resources are created is gated by `var.trigger_ty
 | Container      | Docker (slim base)            |
 | Orchestration  | AWS ECS (Fargate / Fargate Spot) |
 | Registry       | AWS ECR                       |
-| IaC            | Terraform (bootstrap + main)  |
+| IaC            | Terraform (single main stack) |
 | CI/CD          | GitHub Actions                |
 | State          | Terraform state in S3         |
+| Grouping       | Tags + AWS Resource Groups    |
 
 ## Components
 
-- **Always created:** ECS cluster, ECS task definition, ECR repo, image build/push (Terraform `null_resource`), task execution role, task role, CloudWatch log group, App Registry (bootstrap).
+- **Always created:** ECS cluster, ECS task definition, ECR repo, image build/push (Terraform `null_resource`), task execution role, task role, CloudWatch log group, Resource Groups (`rg-{repo}-{env}` and optionally `rg-project-{project}-{env}`).
+- **Tags on all resources:** `Environment`, `Repository`, `Project` (for Cost Explorer and Resource Groups).
+- **ECS services:** `enable_ecs_managed_tags` + `propagate_tags = SERVICE` so running tasks inherit tags.
+- **EventBridge RunTask:** `propagate_tags = TASK_DEFINITION` so scheduled tasks inherit tags.
 - **When `trigger_type = "ecs_eventbridge"`:** EventBridge rule, EventBridge target, SQS DLQ, IAM role for EventBridge.
 - **When `trigger_type = "ecs_api_service"` (legacy `ecs_service`):** Security groups (ECS + ALB), public ALB, target group, HTTP listener, ECS Service. If `API_DOMAIN` and `API_ROOT_DOMAIN` are set: Route53 zone data, ACM certificate, validation records, HTTPS listener, Route53 ALB alias.
 - **When `trigger_type = "ecs_internal_api_service"`:** Same as `ecs_api_service`, but the ALB is internal, placed in private subnets (falls back to all VPC subnets on the default VPC), ALB ingress is limited to the VPC CIDR, and the app port only accepts traffic from the ALB security group.
@@ -33,9 +37,9 @@ All Terraform is active; which resources are created is gated by `var.trigger_ty
 
 ## Deploy flow
 
-1. **GitHub Actions:** On push to `main`: test then `ENVIRONMENT=staging ./deploy.sh`. On tag `v*`: test then `ENVIRONMENT=prod ./deploy.sh`. Destroy via tags `destroy-staging-*` and `destroy-prod-*`.
-2. **deploy.sh:** Sources `config.global` and `config.<staging|prod>`, then runs Terraform bootstrap, then Terraform main (or destroy with `-d`).
-3. **Terraform main:** ECR, Docker build/push, ECS cluster, task definition, IAM, CloudWatch; plus EventBridge or ECS Service/ALB (and optional domain) depending on `trigger_type`.
+1. **GitHub Actions:** Push to `main` → staging deploy. Release → prod deploy. Tags `destroy-staging-*` / `destroy-prod-*` → destroy. Or use **Actions → Run workflow** (`workflow_dispatch`) with environment + deploy/destroy.
+2. **CLI:** `ENVIRONMENT=staging ./deploy.sh` or `ENVIRONMENT=staging ./deploy.sh -d`.
+3. **Terraform main:** Single stack — ECR, Docker build/push, ECS, Resource Groups, plus EventBridge or ECS Service/ALB depending on `trigger_type`.
 
 ## Application modes
 

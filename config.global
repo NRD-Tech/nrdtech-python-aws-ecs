@@ -1,11 +1,20 @@
 #########################################################
 # Configuration
 #########################################################
-# Used to identify the application in AWS resources | allowed characters: a-zA-Z0-9-_
+# Used to identify this repository in AWS resources | allowed characters: a-zA-Z0-9-_
 # NOTE: This must be no longer than 20 characters long
+# Also used as the Repository cost-allocation tag
 export APP_IDENT_WITHOUT_ENV=my-test-project
 export APP_IDENT="${APP_IDENT_WITHOUT_ENV}-${ENVIRONMENT}"
 export TERRAFORM_STATE_IDENT=$APP_IDENT
+
+# Project name for cross-repository cost/resource grouping (Cost Explorer tag: Project).
+# Use the same PROJECT_NAME on related repos (e.g. backend + frontend).
+export PROJECT_NAME=my-test-project
+
+# When true, this stack creates rg-project-${PROJECT_NAME}-${ENVIRONMENT}.
+# Set true on exactly one repo per Project+Environment (usually the "primary" repo).
+export MANAGE_PROJECT_RESOURCE_GROUP=true
 
 # This is the AWS S3 bucket in which you are storing your terraform state files
 # - This must exist before deploying
@@ -13,6 +22,7 @@ export TERRAFORM_STATE_BUCKET=mycompany-terraform-state
 
 # This is the AWS region in which the application will be deployed
 export AWS_DEFAULT_REGION=us-west-2
+export AWS_REGION=${AWS_DEFAULT_REGION}
 
 # OIDC Deployment role
 export AWS_ROLE_ARN=arn:aws:iam::1234567890:role/pipelines-cd-abc123
@@ -42,10 +52,6 @@ export trigger_type=ecs_eventbridge
 
 #########################################################
 # Create code hash
-# NOTE:
-#   - When the code changes a new code hash file should be created
-#   - The find command here should be configured so that it finds all files such that if they change a re-build
-#     and deploy should occur
 #########################################################
 export CODE_HASH_FILE=code_hash.txt
 docker run --rm -v $(pwd):/workdir -w /workdir alpine sh -c \

@@ -164,7 +164,9 @@ resource "aws_ecs_service" "ecs_service" {
   deployment_maximum_percent         = 200
   deployment_minimum_healthy_percent = 100
 
-  tags = data.terraform_remote_state.app_bootstrap.outputs.app_tags
+  # Propagate service tags (Environment/Repository/Project) onto running tasks
+  enable_ecs_managed_tags = true
+  propagate_tags          = "SERVICE"
 
   dynamic "capacity_provider_strategy" {
     for_each = local.ecs_api_service_enabled ? local.api_ecs_target.capacity_provider_strategy : []

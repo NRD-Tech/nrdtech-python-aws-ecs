@@ -146,6 +146,9 @@ def test_non_interactive_full_run_writes_configs(tmp_path, monkeypatch):
     assert "test-app" in global_text
     assert "my-bucket" in global_text
     assert "ecs_api_service" in global_text
+    assert "export PROJECT_NAME=test-app" in global_text
+    assert "export MANAGE_PROJECT_RESOURCE_GROUP=true" in global_text
+    assert "export AWS_REGION=" in global_text
 
     # Verify main.py has FastAPI content
     main_py = (app_dir / "main.py").read_text()
@@ -154,6 +157,45 @@ def test_non_interactive_full_run_writes_configs(tmp_path, monkeypatch):
     # Verify Dockerfile has uvicorn CMD
     df = dockerfile.read_text()
     assert "uvicorn" in df
+
+
+def test_non_interactive_shared_project_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    (app_dir / "main.py").write_text("print('hello')\n")
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+
+    monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
+    monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
+    monkeypatch.setattr(setup_project, "CONFIG_STAGING", str(tmp_path / "config.staging"))
+    monkeypatch.setattr(setup_project, "CONFIG_PROD", str(tmp_path / "config.prod"))
+    monkeypatch.setattr(setup_project, "MAIN_PY_PATH", str(app_dir / "main.py"))
+    monkeypatch.setattr(setup_project, "DOCKERFILE_PATH", str(dockerfile))
+
+    orig = sys.argv
+    try:
+        sys.argv = [
+            "setup.py", "--non-interactive",
+            "--app-type", "scheduled",
+            "--app-name", "backend-api",
+            "--project-name", "checkout",
+            "--manage-project-resource-group", "false",
+            "--terraform-state-bucket", "my-bucket",
+            "--aws-role-arn", "arn:aws:iam::999:role/test",
+        ]
+        result = setup_project.main()
+        assert result == 0
+    finally:
+        sys.argv = orig
+
+    global_text = (tmp_path / "config.global").read_text()
+    assert "export PROJECT_NAME=checkout" in global_text
+    assert "export MANAGE_PROJECT_RESOURCE_GROUP=false" in global_text
+    assert "backend-api" in global_text
 
 
 def test_non_interactive_internal_api_type(tmp_path, monkeypatch):

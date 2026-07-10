@@ -59,6 +59,10 @@ resource "aws_cloudwatch_event_target" "ecs_target" {
   ecs_target {
     task_definition_arn = local.ecs_target.task_definition_arn
 
+    # Propagate task-definition tags (Environment/Repository/Project) onto RunTask launches
+    enable_ecs_managed_tags = true
+    propagate_tags          = "TASK_DEFINITION"
+
     # Handle launch_type or capacity_provider_strategy
     dynamic "capacity_provider_strategy" {
       for_each = lookup(local.ecs_target, "capacity_provider_strategy", [])
