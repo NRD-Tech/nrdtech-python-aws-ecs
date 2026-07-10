@@ -115,7 +115,7 @@ def test_non_interactive_full_run_writes_configs(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.12-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
 
     monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
     monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
@@ -164,7 +164,7 @@ def test_non_interactive_internal_api_type(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.12-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
 
     monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
     monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
@@ -205,7 +205,7 @@ def test_non_interactive_scheduled_type(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.12-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
 
     monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
     monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))

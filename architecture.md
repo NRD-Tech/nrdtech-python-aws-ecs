@@ -2,7 +2,7 @@
 
 ## Overview
 
-This template runs a **Python 3.12** app on **AWS ECS (Fargate)**. The app is packaged as a Docker image in ECR. One trigger mode is active at a time, selected by **`trigger_type`** in `config.global`:
+This template runs a **Python 3.14** app on **AWS ECS (Fargate)**. The app is packaged as a Docker image in ECR. One trigger mode is active at a time, selected by **`trigger_type`** in `config.global`:
 
 - **ecs_eventbridge** – EventBridge cron runs the ECS task on a schedule (with SQS DLQ). No ECS Service or ALB.
 - **ecs_api_service** (legacy alias `ecs_service`) – ECS Service behind a public Application Load Balancer (optional HTTPS + Route53 when `API_DOMAIN` / `API_ROOT_DOMAIN` are set).
@@ -15,7 +15,7 @@ All Terraform is active; which resources are created is gated by `var.trigger_ty
 
 | Layer           | Technology                    |
 |----------------|-------------------------------|
-| Runtime        | Python 3.12, Poetry           |
+| Runtime        | Python 3.14, Poetry           |
 | Container      | Docker (slim base)            |
 | Orchestration  | AWS ECS (Fargate / Fargate Spot) |
 | Registry       | AWS ECR                       |

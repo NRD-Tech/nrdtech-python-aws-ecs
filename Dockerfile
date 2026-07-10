@@ -1,5 +1,5 @@
-# Use an official Python 3.12 slim image
-FROM python:3.12-slim
+# Use an official Python 3.14 slim image
+FROM python:3.14-slim
 
 # Set working directory inside the container
 WORKDIR /app
@@ -25,7 +25,7 @@ RUN ~/.local/bin/poetry install --only main
 
 # Locate Poetry's virtual environment and copy dependencies to the Lambda path
 RUN VENV_PATH=$(~/.local/bin/poetry env info --path) && \
-    cp -r ${VENV_PATH}/lib/python3.12/site-packages/* ./ && \
+    cp -r ${VENV_PATH}/lib/python3.14/site-packages/* ./ && \
     ln -s ${VENV_PATH}/bin/uvicorn /usr/local/bin/uvicorn
 
 # Copy function code

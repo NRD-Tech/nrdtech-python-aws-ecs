@@ -1,6 +1,6 @@
 # Python AWS ECS App
 
-Template for a **Python 3.12** app running on **AWS ECS (Fargate)**. The app is packaged as a Docker image (ECR) and can run in one of these modes, selected by `trigger_type`:
+Template for a **Python 3.14** app running on **AWS ECS (Fargate)**. The app is packaged as a Docker image (ECR) and can run in one of these modes, selected by `trigger_type`:
 
 - **ecs_eventbridge** – Scheduled task: EventBridge cron runs the ECS task (with optional SQS DLQ).
 - **ecs_api_service** (legacy alias `ecs_service`) – Always-on service: ECS Service behind a public Application Load Balancer (optional HTTPS + Route53 when `API_DOMAIN` / `API_ROOT_DOMAIN` are set).
@@ -9,7 +9,7 @@ Template for a **Python 3.12** app running on **AWS ECS (Fargate)**. The app is 
 
 ## Technology stack
 
-- Python 3.12, Poetry
+- Python 3.14, Poetry
 - Docker
 - Terraform (bootstrap + main; state in S3)
 - GitHub Actions (test, deploy staging/prod, destroy via tags)
@@ -18,18 +18,18 @@ Template for a **Python 3.12** app running on **AWS ECS (Fargate)**. The app is 
 
 ### Prerequisites
 
-- Python 3.12 and Poetry
+- Python 3.14 and Poetry
 
 ```bash
 # macOS
-brew install python@3.12 poetry
+brew install python@3.14 poetry
 poetry config virtualenvs.in-project true
 ```
 
 ### One-time setup
 
 ```bash
-poetry env use python3.12
+poetry env use python3.14
 poetry install
 ```
 
