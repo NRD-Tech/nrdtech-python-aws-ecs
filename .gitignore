@@ -65,3 +65,4 @@ tfplan.txt
 **/tfplan
 **/tfplan.txt
 web-identity-token
+.coverage
