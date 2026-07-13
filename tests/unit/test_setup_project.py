@@ -1,4 +1,5 @@
 """Unit tests for setup.py (project setup script)."""
+
 import importlib.util
 import os
 import sys
@@ -15,6 +16,8 @@ setup_project = importlib.util.module_from_spec(_SPEC)
 sys.modules["setup_project"] = setup_project
 _SPEC.loader.exec_module(setup_project)
 
+import setup_lib.constants as _setup_constants
+
 
 # ---------------------------------------------------------------------------
 # _parse_export_file
@@ -25,7 +28,7 @@ def test_parse_export_file_missing_returns_empty():
 
 def test_parse_export_file_parses_export_lines():
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
-        f.write('export FOO=bar\n')
+        f.write("export FOO=bar\n")
         f.write('export BAR="baz"\n')
         f.write("export QUX='quux'\n")
         f.write("# export SKIP=no\n")
@@ -174,23 +177,28 @@ def test_non_interactive_full_run_writes_configs(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text('FROM python:3.14-slim\nCOPY app ./app/\nCMD ["python", "app/main.py"]\n')
 
-    monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
-    monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
-    monkeypatch.setattr(setup_project, "CONFIG_STAGING", str(tmp_path / "config.staging"))
-    monkeypatch.setattr(setup_project, "CONFIG_PROD", str(tmp_path / "config.prod"))
-    monkeypatch.setattr(setup_project, "MAIN_PY_PATH", str(app_dir / "main.py"))
-    monkeypatch.setattr(setup_project, "DOCKERFILE_PATH", str(dockerfile))
+    monkeypatch.setattr(_setup_constants, "SCRIPT_DIR", str(tmp_path))
+    monkeypatch.setattr(_setup_constants, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_STAGING", str(tmp_path / "config.staging"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_PROD", str(tmp_path / "config.prod"))
+    monkeypatch.setattr(_setup_constants, "MAIN_PY_PATH", str(app_dir / "main.py"))
+    monkeypatch.setattr(_setup_constants, "DOCKERFILE_PATH", str(dockerfile))
 
     orig = sys.argv
     try:
         sys.argv = [
-            "setup.py", "--non-interactive",
-            "--app-type", "api",
-            "--app-name", "test-app",
-            "--terraform-state-bucket", "my-bucket",
-            "--aws-role-arn", "arn:aws:iam::999:role/test",
+            "setup.py",
+            "--non-interactive",
+            "--app-type",
+            "api",
+            "--app-name",
+            "test-app",
+            "--terraform-state-bucket",
+            "my-bucket",
+            "--aws-role-arn",
+            "arn:aws:iam::999:role/test",
         ]
         result = setup_project.main()
         assert result == 0
@@ -226,25 +234,32 @@ def test_non_interactive_shared_project_name(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text('FROM python:3.14-slim\nCOPY app ./app/\nCMD ["python", "app/main.py"]\n')
 
-    monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
-    monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
-    monkeypatch.setattr(setup_project, "CONFIG_STAGING", str(tmp_path / "config.staging"))
-    monkeypatch.setattr(setup_project, "CONFIG_PROD", str(tmp_path / "config.prod"))
-    monkeypatch.setattr(setup_project, "MAIN_PY_PATH", str(app_dir / "main.py"))
-    monkeypatch.setattr(setup_project, "DOCKERFILE_PATH", str(dockerfile))
+    monkeypatch.setattr(_setup_constants, "SCRIPT_DIR", str(tmp_path))
+    monkeypatch.setattr(_setup_constants, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_STAGING", str(tmp_path / "config.staging"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_PROD", str(tmp_path / "config.prod"))
+    monkeypatch.setattr(_setup_constants, "MAIN_PY_PATH", str(app_dir / "main.py"))
+    monkeypatch.setattr(_setup_constants, "DOCKERFILE_PATH", str(dockerfile))
 
     orig = sys.argv
     try:
         sys.argv = [
-            "setup.py", "--non-interactive",
-            "--app-type", "scheduled",
-            "--app-name", "backend-api",
-            "--project-name", "checkout",
-            "--manage-project-resource-group", "false",
-            "--terraform-state-bucket", "my-bucket",
-            "--aws-role-arn", "arn:aws:iam::999:role/test",
+            "setup.py",
+            "--non-interactive",
+            "--app-type",
+            "scheduled",
+            "--app-name",
+            "backend-api",
+            "--project-name",
+            "checkout",
+            "--manage-project-resource-group",
+            "false",
+            "--terraform-state-bucket",
+            "my-bucket",
+            "--aws-role-arn",
+            "arn:aws:iam::999:role/test",
         ]
         result = setup_project.main()
         assert result == 0
@@ -265,23 +280,28 @@ def test_non_interactive_internal_api_type(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text('FROM python:3.14-slim\nCOPY app ./app/\nCMD ["python", "app/main.py"]\n')
 
-    monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
-    monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
-    monkeypatch.setattr(setup_project, "CONFIG_STAGING", str(tmp_path / "config.staging"))
-    monkeypatch.setattr(setup_project, "CONFIG_PROD", str(tmp_path / "config.prod"))
-    monkeypatch.setattr(setup_project, "MAIN_PY_PATH", str(app_dir / "main.py"))
-    monkeypatch.setattr(setup_project, "DOCKERFILE_PATH", str(dockerfile))
+    monkeypatch.setattr(_setup_constants, "SCRIPT_DIR", str(tmp_path))
+    monkeypatch.setattr(_setup_constants, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_STAGING", str(tmp_path / "config.staging"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_PROD", str(tmp_path / "config.prod"))
+    monkeypatch.setattr(_setup_constants, "MAIN_PY_PATH", str(app_dir / "main.py"))
+    monkeypatch.setattr(_setup_constants, "DOCKERFILE_PATH", str(dockerfile))
 
     orig = sys.argv
     try:
         sys.argv = [
-            "setup.py", "--non-interactive",
-            "--app-type", "internal_api",
-            "--app-name", "internal-app",
-            "--terraform-state-bucket", "my-bucket",
-            "--aws-role-arn", "arn:aws:iam::999:role/test",
+            "setup.py",
+            "--non-interactive",
+            "--app-type",
+            "internal_api",
+            "--app-name",
+            "internal-app",
+            "--terraform-state-bucket",
+            "my-bucket",
+            "--aws-role-arn",
+            "arn:aws:iam::999:role/test",
         ]
         result = setup_project.main()
         assert result == 0
@@ -306,23 +326,28 @@ def test_non_interactive_scheduled_type(tmp_path, monkeypatch):
     app_dir.mkdir()
     (app_dir / "main.py").write_text("print('hello')\n")
     dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM python:3.14-slim\nCOPY app ./app/\nCMD [\"python\", \"app/main.py\"]\n")
+    dockerfile.write_text('FROM python:3.14-slim\nCOPY app ./app/\nCMD ["python", "app/main.py"]\n')
 
-    monkeypatch.setattr(setup_project, "SCRIPT_DIR", str(tmp_path))
-    monkeypatch.setattr(setup_project, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
-    monkeypatch.setattr(setup_project, "CONFIG_STAGING", str(tmp_path / "config.staging"))
-    monkeypatch.setattr(setup_project, "CONFIG_PROD", str(tmp_path / "config.prod"))
-    monkeypatch.setattr(setup_project, "MAIN_PY_PATH", str(app_dir / "main.py"))
-    monkeypatch.setattr(setup_project, "DOCKERFILE_PATH", str(dockerfile))
+    monkeypatch.setattr(_setup_constants, "SCRIPT_DIR", str(tmp_path))
+    monkeypatch.setattr(_setup_constants, "CONFIG_GLOBAL", str(tmp_path / "config.global"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_STAGING", str(tmp_path / "config.staging"))
+    monkeypatch.setattr(_setup_constants, "CONFIG_PROD", str(tmp_path / "config.prod"))
+    monkeypatch.setattr(_setup_constants, "MAIN_PY_PATH", str(app_dir / "main.py"))
+    monkeypatch.setattr(_setup_constants, "DOCKERFILE_PATH", str(dockerfile))
 
     orig = sys.argv
     try:
         sys.argv = [
-            "setup.py", "--non-interactive",
-            "--app-type", "scheduled",
-            "--app-name", "cron-job",
-            "--terraform-state-bucket", "my-bucket",
-            "--aws-role-arn", "arn:aws:iam::999:role/test",
+            "setup.py",
+            "--non-interactive",
+            "--app-type",
+            "scheduled",
+            "--app-name",
+            "cron-job",
+            "--terraform-state-bucket",
+            "my-bucket",
+            "--aws-role-arn",
+            "arn:aws:iam::999:role/test",
         ]
         result = setup_project.main()
         assert result == 0

@@ -2,14 +2,15 @@
     "version": 1,
     "disable_existing_loggers": false,
     "formatters": {
-        "default": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "json": {
+            "()": "pythonjsonlogger.json.JsonFormatter",
+            "fmt": "%(asctime)s %(name)s %(levelname)s %(message)s"
         }
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "default",
+            "formatter": "json",
             "stream": "ext://sys.stdout"
         }
     },

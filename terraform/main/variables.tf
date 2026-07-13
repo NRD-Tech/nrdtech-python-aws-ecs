@@ -102,3 +102,9 @@ variable "CODEARTIFACT_TOKEN" {
   type        = string
   default = ""
 }
+
+variable "ALERT_EMAIL" {
+  description = "Optional email subscribed to the alerts SNS topic. Empty = no subscription."
+  type        = string
+  default     = ""
+}

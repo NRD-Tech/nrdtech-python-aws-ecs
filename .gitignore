@@ -58,3 +58,10 @@ terraform/main/remote_backend.tf
 
 # Sqlite
 *.db
+
+# Terraform plan artifacts / local deploy tokens
+tfplan
+tfplan.txt
+**/tfplan
+**/tfplan.txt
+web-identity-token

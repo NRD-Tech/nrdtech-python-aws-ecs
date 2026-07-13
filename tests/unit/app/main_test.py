@@ -2,14 +2,16 @@
 # Basic App Test
 ##########################################
 
-from app.main import main
 from dotenv import load_dotenv
+
+from app.main import main
 
 load_dotenv()
 
 
 def test_main():
     main()
+
 
 ##########################################
 # FastAPI App Test

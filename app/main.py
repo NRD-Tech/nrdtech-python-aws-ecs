@@ -6,8 +6,15 @@
 ##############################################################################################################
 # Basic Task
 ##############################################################################################################
-def main():
-    print("Hello World2")
+from app.logging_setup import configure_logging, get_logger
+
+configure_logging()
+log = get_logger(__name__)
+
+
+def main() -> None:
+    log.info("hello_world")
+    print("Hello World")
 
 
 if __name__ == "__main__":

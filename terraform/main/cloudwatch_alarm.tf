@@ -34,3 +34,11 @@ resource "aws_cloudwatch_metric_alarm" "ecs_failure_alarm" {
     return_data = true
   }
 }
+
+resource "aws_sns_topic_subscription" "ecs_alerts_email" {
+  count = local.ecs_api_service_enabled && var.ENVIRONMENT == "prod" && var.ALERT_EMAIL != "" ? 1 : 0
+
+  topic_arn = aws_sns_topic.ecs_alerts[0].arn
+  protocol  = "email"
+  endpoint  = var.ALERT_EMAIL
+}

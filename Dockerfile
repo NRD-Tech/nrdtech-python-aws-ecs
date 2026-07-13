@@ -1,40 +1,41 @@
-# Use an official Python 3.14 slim image
-FROM python:3.14-slim
+# Multi-stage build: install deps in builder, run as non-root in runtime.
+FROM python:3.14-slim AS builder
 
-# Set working directory inside the container
-WORKDIR /app
+WORKDIR /build
 
-# Install dependencies
 RUN apt-get update && \
-    apt-get install -y curl && \
+    apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Copy pyproject.toml and poetry.lock for dependency installation
-COPY pyproject.toml poetry.lock logging_config.json ./
+COPY pyproject.toml poetry.lock ./
+RUN poetry config virtualenvs.in-project true && \
+    poetry install --only main --no-interaction --no-ansi --no-root
 
-# NOTE: Use this if you need to access private codeartifact shared python libraries
-# ARG CODEARTIFACT_TOKEN
-# ENV CODEARTIFACT_TOKEN=${CODEARTIFACT_TOKEN}
-# RUN ~/.local/bin/poetry config http-basic.mycompany aws ${CODEARTIFACT_TOKEN}
+FROM python:3.14-slim AS runtime
 
-# Install dependencies using Poetry (only production dependencies)
-RUN ~/.local/bin/poetry install --only main
+WORKDIR /app
 
-# Locate Poetry's virtual environment and copy dependencies to the Lambda path
-RUN VENV_PATH=$(~/.local/bin/poetry env info --path) && \
-    cp -r ${VENV_PATH}/lib/python3.14/site-packages/* ./ && \
-    ln -s ${VENV_PATH}/bin/uvicorn /usr/local/bin/uvicorn
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --system app && useradd --system --gid app --home /app --shell /usr/sbin/nologin app
 
-# Copy function code
+COPY --from=builder /build/.venv /app/.venv
+ENV PATH="/app/.venv/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+COPY logging_config.json ./
 COPY app ./app/
 
-##############################################################################################################
-# UN-COMMENT ONE OF THE SECTIONS BELOW
-##############################################################################################################
+USER app
 
+##############################################################################################################
+# UN-COMMENT ONE OF THE SECTIONS BELOW (setup.py will rewrite the CMD block)
+##############################################################################################################
 
 ##############################################################################################################
 # Basic Task
@@ -44,7 +45,5 @@ CMD ["python", "app/main.py"]
 ##############################################################################################################
 # FastAPI App Service
 ##############################################################################################################
-# # Expose the port the app will run on
 # EXPOSE 8080
-# # Command to run the application using Uvicorn
 # CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--log-config", "logging_config.json"]
