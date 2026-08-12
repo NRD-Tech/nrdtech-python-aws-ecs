@@ -13,6 +13,15 @@ locals {
   api_subnets               = local.api_internal ? local.private_subnets_or_all : local.public_subnets_or_all
   api_alb_ingress_cidrs     = local.api_internal ? [local.vpc_cidr] : ["0.0.0.0/0"]
 
+  # Public internet-facing ALBs bill ~$3.60/mo per AZ for public IPv4. Staging rarely needs
+  # 3–4 AZ HA, so limit the ALB to 2 subnets (tasks still use full api_subnets).
+  # Internal and prod ALBs keep the full set.
+  alb_subnet_ids = (
+    local.api_internal || contains(["prod", "production"], var.ENVIRONMENT)
+    ? local.api_subnets
+    : slice(sort(local.api_subnets), 0, min(2, length(local.api_subnets)))
+  )
+
   api_fargate_strategy = tolist([{ capacity_provider = "FARGATE", weight = 1 }])
   api_fargate_spot_strategy = tolist([
     { capacity_provider = "FARGATE", weight = 2 },
@@ -124,7 +133,7 @@ resource "aws_lb" "ecs_alb" {
   internal           = local.api_internal
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg[0].id]
-  subnets            = local.api_subnets
+  subnets            = local.alb_subnet_ids
 
   enable_deletion_protection = false
   enable_http2               = true
