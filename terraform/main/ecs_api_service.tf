@@ -13,14 +13,33 @@ locals {
   api_subnets               = local.api_internal ? local.private_subnets_or_all : local.public_subnets_or_all
   api_alb_ingress_cidrs     = local.api_internal ? [local.vpc_cidr] : ["0.0.0.0/0"]
 
-  # Public internet-facing ALBs bill ~$3.60/mo per AZ for public IPv4. Staging rarely needs
-  # 3–4 AZ HA, so limit the ALB to 2 subnets (tasks still use full api_subnets).
-  # Internal and prod ALBs keep the full set.
-  alb_subnet_ids = (
-    local.api_internal || contains(["prod", "production"], var.ENVIRONMENT)
-    ? local.api_subnets
-    : slice(sort(local.api_subnets), 0, min(2, length(local.api_subnets)))
+  # Public internet-facing ALBs bill ~$3.60/mo per AZ for public IPv4, and staging rarely
+  # needs 3–4 AZ HA, so non-prod public ALBs are limited to 2 AZs. Only Fargate qualifies:
+  # an ALB cannot reach a target in an AZ it does not serve, and this module places Fargate
+  # tasks itself (api_task_subnets) whereas EC2 container instances may sit in any AZ.
+  api_fargate = contains(["FARGATE", "FARGATE_SPOT"], var.LAUNCH_TYPE)
+  api_trim_alb_azs = (
+    local.api_fargate
+    && !local.api_internal
+    && !contains(["prod", "production"], var.ENVIRONMENT)
+    && length(local.api_subnet_by_az) > 2
   )
+
+  # One subnet per AZ so the trim below can never pick two subnets in the same AZ.
+  api_subnet_az = { for id, subnet in data.aws_subnet.api : id => subnet.availability_zone }
+  api_subnet_by_az = {
+    for az in distinct(values(local.api_subnet_az)) :
+    az => sort([for id, subnet_az in local.api_subnet_az : id if subnet_az == az])[0]
+  }
+  api_two_az_subnets = [
+    for az in slice(sort(keys(local.api_subnet_by_az)), 0, 2) : local.api_subnet_by_az[az]
+  ]
+
+  alb_subnet_ids = local.api_trim_alb_azs ? local.api_two_az_subnets : local.api_subnets
+
+  # Tasks run in the ALB's subnets so the two sets cannot drift apart: a task placed in an
+  # AZ the ALB does not serve stays "unused" in the target group and the ALB returns 503.
+  api_task_subnets = local.alb_subnet_ids
 
   api_fargate_strategy = tolist([{ capacity_provider = "FARGATE", weight = 1 }])
   api_fargate_spot_strategy = tolist([
@@ -39,13 +58,13 @@ locals {
       var.LAUNCH_TYPE == "FARGATE" || var.LAUNCH_TYPE == "FARGATE_SPOT"
         ? {
             security_groups  = [aws_security_group.ecs_sg[0].id]
-            subnets          = local.api_subnets
+            subnets          = local.api_task_subnets
             # Tasks in subnets without a NAT path still need a public IP to pull from ECR.
             assign_public_ip = local.api_internal ? !local.api_private_subnets_exist : true
           }
         : {
             security_groups  = [aws_security_group.ecs_sg[0].id]
-            subnets          = local.api_subnets
+            subnets          = local.api_task_subnets
             assign_public_ip = false
           }
     )
@@ -54,6 +73,14 @@ locals {
 
 locals {
   api_cluster_name = local.ecs_api_service_enabled ? element(split("/", aws_ecs_cluster.ecs.arn), 1) : ""
+}
+
+# aws_subnets only returns ids; the AZ of each candidate subnet is needed to keep the ALB
+# and the tasks in the same AZs.
+data "aws_subnet" "api" {
+  for_each = local.ecs_api_service_enabled ? toset(local.api_subnets) : toset([])
+
+  id = each.value
 }
 
 data "aws_route53_zone" "api_domain" {
