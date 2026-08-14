@@ -12,6 +12,11 @@
 export API_ROOT_DOMAIN=mycompany.com
 export API_DOMAIN=api-staging.mycompany.com
 
+# Optional: restrict who can reach the ALB. Unset = the public internet for
+# ecs_api_service, the VPC only for ecs_internal_api_service. Tasks are never reachable
+# directly in either case - the ALB is the only ingress path.
+# export API_ALLOWED_CIDRS='["203.0.113.0/24","198.51.100.10/32"]'
+
 # Number of tasks in an ECS Service
 export MIN_COUNT=1
 export MAX_COUNT=2

@@ -52,6 +52,48 @@ locals {
   # one side is empty (e.g. the default VPC, where every subnet auto-assigns public IPs).
   public_subnets_or_all  = length(data.aws_subnets.public.ids) > 0 ? data.aws_subnets.public.ids : data.aws_subnets.subnets.ids
   private_subnets_or_all = length(data.aws_subnets.private.ids) > 0 ? data.aws_subnets.private.ids : data.aws_subnets.subnets.ids
+
+  # Baseline task egress, shared by the API and background service security groups.
+  # Tasks need outbound 443 for ECR pulls, CloudWatch Logs, Secrets Manager and most
+  # third-party APIs, plus unrestricted reach to in-VPC dependencies (RDS, Redis, ...).
+  # Anything else - an external database port, SMTP, a partner on a custom port - is an
+  # explicit opt-in via TASK_EXTRA_EGRESS_RULES rather than a blanket allow-all.
+  task_base_egress_rules = [
+    {
+      description = "HTTPS to AWS service endpoints and external APIs"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      description = "All protocols to in-VPC dependencies"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = [local.vpc_cidr]
+    },
+  ]
+
+  task_egress_rules = concat(local.task_base_egress_rules, var.TASK_EXTRA_EGRESS_RULES)
+
+  # Standalone egress rules take a single CIDR each, so flatten to one entry per
+  # (rule, cidr). Keys are derived from the rule itself, not a list index, so adding a
+  # rule doesn't churn the others. "-1" (all protocols) must leave the ports unset.
+  task_egress_rule_map = {
+    for r in flatten([
+      for rule in local.task_egress_rules : [
+        for cidr in rule.cidr_blocks : {
+          key         = "${rule.protocol}_${rule.from_port}_${rule.to_port}_${cidr}"
+          description = rule.description
+          ip_protocol = rule.protocol
+          cidr_ipv4   = cidr
+          from_port   = rule.protocol == "-1" ? null : rule.from_port
+          to_port     = rule.protocol == "-1" ? null : rule.to_port
+        }
+      ]
+    ]) : r.key => r
+  }
 }
 
 data "aws_subnets" "subnets" {

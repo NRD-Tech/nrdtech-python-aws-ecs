@@ -14,18 +14,25 @@ locals {
   )
 }
 
+# Workers take no inbound traffic at all - this group has no ingress rules. Egress uses
+# the shared task baseline (443 out, plus anything in-VPC) instead of allow-all, so a
+# compromised task can't reach arbitrary ports on arbitrary hosts.
 resource "aws_security_group" "ecs_bg_sg" {
   count = local.ecs_background_service_enabled ? 1 : 0
 
   name   = "${var.APP_IDENT}-bg-sg"
   vpc_id = local.vpc_id
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_vpc_security_group_egress_rule" "ecs_bg_egress" {
+  for_each = local.ecs_background_service_enabled ? local.task_egress_rule_map : {}
+
+  security_group_id = aws_security_group.ecs_bg_sg[0].id
+  cidr_ipv4         = each.value.cidr_ipv4
+  from_port         = each.value.from_port
+  to_port           = each.value.to_port
+  ip_protocol       = each.value.ip_protocol
+  description       = each.value.description
 }
 
 resource "aws_ecs_service" "ecs_bg_service" {
