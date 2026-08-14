@@ -59,6 +59,10 @@ export trigger_type=ecs_eventbridge
 # Optional: set VPC_NAME to a tag:Name value to use a custom VPC; leave unset for default VPC
 # export VPC_NAME=my-standard-vpc
 
+# Task egress defaults to TCP 443 anywhere (ECR, CloudWatch Logs, Secrets Manager, HTTPS
+# APIs) plus everything inside the VPC. Add rules here for dependencies on other ports.
+# export TASK_EXTRA_EGRESS_RULES='[{description="External Postgres",from_port=5432,to_port=5432,protocol="tcp",cidr_blocks=["203.0.113.10/32"]}]'
+
 #########################################################
 # Create code hash
 #########################################################

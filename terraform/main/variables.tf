@@ -94,6 +94,50 @@ variable "API_ROOT_DOMAIN" {
   default = ""
 }
 
+variable "API_ALLOWED_CIDRS" {
+  description = <<-EOT
+    CIDRs allowed to reach the ALB on 80/443. Set this in config.<env> to restrict a
+    public API to corporate/VPN/NAT ranges. Empty = fall back to the trigger default:
+    the VPC CIDR for ecs_internal_api_service, the public internet for ecs_api_service
+    (an internet-facing API is that trigger's purpose). Tasks are never reachable
+    directly - the ALB is the only ingress path in either case.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for c in var.API_ALLOWED_CIDRS : can(cidrhost(c, 0))])
+    error_message = "API_ALLOWED_CIDRS entries must be valid CIDR blocks, e.g. 203.0.113.0/24."
+  }
+}
+
+##################################################
+# Task egress
+##################################################
+variable "TASK_EXTRA_EGRESS_RULES" {
+  description = <<-EOT
+    Extra outbound rules for ECS tasks, on top of the baseline (443 to anywhere for AWS
+    endpoints and HTTPS APIs, all protocols to the VPC CIDR). Use this for dependencies
+    on non-443 ports outside the VPC, e.g. an external Postgres:
+      [{ description = "External Postgres", from_port = 5432, to_port = 5432, protocol = "tcp", cidr_blocks = ["203.0.113.10/32"] }]
+  EOT
+  type = list(object({
+    description = string
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for r in var.TASK_EXTRA_EGRESS_RULES : alltrue([for c in r.cidr_blocks : can(cidrhost(c, 0))])
+    ])
+    error_message = "TASK_EXTRA_EGRESS_RULES cidr_blocks entries must be valid CIDR blocks."
+  }
+}
+
 ##################################################
 # Code Artifact
 ##################################################

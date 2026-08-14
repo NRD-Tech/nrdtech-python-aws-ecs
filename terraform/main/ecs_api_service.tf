@@ -11,7 +11,12 @@ locals {
   # subnets. Both fall back to all VPC subnets when none match (see main.tf locals).
   api_private_subnets_exist = length(data.aws_subnets.private.ids) > 0
   api_subnets               = local.api_internal ? local.private_subnets_or_all : local.public_subnets_or_all
-  api_alb_ingress_cidrs     = local.api_internal ? [local.vpc_cidr] : ["0.0.0.0/0"]
+
+  # An explicit API_ALLOWED_CIDRS allowlist always wins. Otherwise internal APIs admit only
+  # the VPC, and public APIs admit the internet - which is the point of that trigger, and is
+  # now the single ingress path since tasks no longer accept traffic directly.
+  api_alb_default_cidrs = local.api_internal ? [local.vpc_cidr] : ["0.0.0.0/0"]
+  api_alb_ingress_cidrs = length(var.API_ALLOWED_CIDRS) > 0 ? var.API_ALLOWED_CIDRS : local.api_alb_default_cidrs
 
   # Public internet-facing ALBs bill ~$3.60/mo per AZ for public IPv4, and staging rarely
   # needs 3–4 AZ HA, so non-prod public ALBs are limited to 2 AZs. Only Fargate qualifies:
@@ -89,40 +94,42 @@ data "aws_route53_zone" "api_domain" {
   name = "${var.API_ROOT_DOMAIN}."
 }
 
-# Security groups first (referenced by api_ecs_target local and ALB)
+# Security groups first (referenced by api_ecs_target local and ALB).
+#
+# The task and ALB groups reference each other, so their rules live in standalone rule
+# resources rather than inline blocks - inline blocks would form a dependency cycle, and
+# the provider does not allow mixing inline rules with standalone ones on one group.
 resource "aws_security_group" "ecs_sg" {
   count = local.ecs_api_service_enabled ? 1 : 0
 
   name   = "${var.APP_IDENT}-ecs-sg"
   vpc_id = local.vpc_id
+}
 
-  # Public API keeps the historically open app port; internal API admits only the ALB.
-  dynamic "ingress" {
-    for_each = local.api_internal ? [] : [1]
-    content {
-      from_port   = 8080
-      to_port     = 8080
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
-    }
-  }
+# The ALB is the only way in, for both public and internal APIs. Public-mode tasks run in
+# public subnets with a public IP (needed to reach ECR), so opening 8080 to the world here
+# let anyone hit a task directly over plaintext HTTP and skip the ALB entirely - along with
+# its TLS termination, access logs, and any WAF attached to it.
+resource "aws_vpc_security_group_ingress_rule" "ecs_from_alb" {
+  count = local.ecs_api_service_enabled ? 1 : 0
 
-  dynamic "ingress" {
-    for_each = local.api_internal ? [1] : []
-    content {
-      from_port       = 8080
-      to_port         = 8080
-      protocol        = "tcp"
-      security_groups = [aws_security_group.alb_sg[0].id]
-    }
-  }
+  security_group_id            = aws_security_group.ecs_sg[0].id
+  referenced_security_group_id = aws_security_group.alb_sg[0].id
+  from_port                    = 8080
+  to_port                      = 8080
+  ip_protocol                  = "tcp"
+  description                  = "App port, from the ALB only"
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_vpc_security_group_egress_rule" "ecs_egress" {
+  for_each = local.ecs_api_service_enabled ? local.task_egress_rule_map : {}
+
+  security_group_id = aws_security_group.ecs_sg[0].id
+  cidr_ipv4         = each.value.cidr_ipv4
+  from_port         = each.value.from_port
+  to_port           = each.value.to_port
+  ip_protocol       = each.value.ip_protocol
+  description       = each.value.description
 }
 
 resource "aws_security_group" "alb_sg" {
@@ -130,27 +137,40 @@ resource "aws_security_group" "alb_sg" {
 
   name   = "${var.APP_IDENT}-alb-sg"
   vpc_id = local.vpc_id
+}
 
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = local.api_alb_ingress_cidrs
-  }
+resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  for_each = local.ecs_api_service_enabled ? toset(local.api_alb_ingress_cidrs) : toset([])
 
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = local.api_alb_ingress_cidrs
-  }
+  security_group_id = aws_security_group.alb_sg[0].id
+  cidr_ipv4         = each.value
+  from_port         = 80
+  to_port           = 80
+  ip_protocol       = "tcp"
+  description       = "HTTP from allowed clients"
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  for_each = local.ecs_api_service_enabled ? toset(local.api_alb_ingress_cidrs) : toset([])
+
+  security_group_id = aws_security_group.alb_sg[0].id
+  cidr_ipv4         = each.value
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+  description       = "HTTPS from allowed clients"
+}
+
+# The ALB only ever forwards to the target group, so it needs no other outbound reach.
+resource "aws_vpc_security_group_egress_rule" "alb_to_tasks" {
+  count = local.ecs_api_service_enabled ? 1 : 0
+
+  security_group_id            = aws_security_group.alb_sg[0].id
+  referenced_security_group_id = aws_security_group.ecs_sg[0].id
+  from_port                    = 8080
+  to_port                      = 8080
+  ip_protocol                  = "tcp"
+  description                  = "Forward to ECS tasks"
 }
 
 resource "aws_lb" "ecs_alb" {
